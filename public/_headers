@@ -1,0 +1,8 @@
+/data.js
+  Cache-Control: no-store, must-revalidate
+/meta.js
+  Cache-Control: no-store, must-revalidate
+/tags.js
+  Cache-Control: no-store, must-revalidate
+/allsales.js
+  Cache-Control: no-store, must-revalidate

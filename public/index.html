@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Báo cáo Sale Messenger · AVB</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  :root{
+    --bg:#f0f5fb; --card:#ffffff; --ink:#1f3550; --muted:#6b8199;
+    --blue:#2f7fe0; --blue-d:#1f5fb0; --blue-l:#dcebfb; --sky:#eaf3fd;
+    --green:#2bb673; --amber:#e8a13a; --red:#e5564d; --line:#e3edf7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font-family:'Segoe UI',system-ui,-apple-system,Roboto,Arial,sans-serif;font-size:14px;line-height:1.5}
+  .wrap{max-width:1180px;margin:0 auto;padding:22px 18px 60px}
+  .top{display:flex;flex-wrap:wrap;align-items:center;gap:12px;margin-bottom:16px}
+  .top h1{font-size:21px;margin:0;font-weight:800;letter-spacing:-.3px}
+  .top .sub{color:var(--muted);font-size:13px;margin-top:3px}
+  .badge{display:inline-flex;align-items:center;gap:6px;background:var(--sky);color:var(--blue-d);
+    border:1px solid var(--blue-l);border-radius:20px;padding:5px 12px;font-weight:700;font-size:12.5px}
+  .spacer{flex:1}
+  /* period filter */
+  .filter{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .fbtn{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px 16px;
+    font-weight:700;font-size:13.5px;color:var(--ink);cursor:pointer;transition:.15s;box-shadow:0 1px 4px rgba(31,95,176,.05)}
+  .fbtn:hover{border-color:var(--blue)}
+  .fbtn.on{background:var(--blue);border-color:var(--blue);color:#fff;box-shadow:0 3px 10px rgba(47,127,224,.3)}
+  .fbtn small{display:block;font-weight:600;font-size:11px;opacity:.75;margin-top:1px}
+  .custom{display:inline-flex;align-items:center;gap:6px;background:var(--card);border:1px solid var(--line);
+    border-radius:10px;padding:5px 8px;margin-left:4px}
+  .custom input[type=date]{border:1px solid var(--line);border-radius:7px;padding:6px 8px;font-size:13px;
+    color:var(--ink);font-family:inherit;background:#fafdff}
+  .custom .fbtn{padding:6px 12px}
+  .kpis{display:grid;grid-template-columns:repeat(6,1fr);gap:12px;margin-bottom:16px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;
+    box-shadow:0 2px 10px rgba(31,95,176,.05)}
+  .kpi .k-lbl{font-size:11.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.3px}
+  .kpi .k-val{font-size:23px;font-weight:800;margin-top:6px;letter-spacing:-.5px}
+  .kpi .k-sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .kpi.accent{background:linear-gradient(135deg,#2f7fe0,#1f5fb0);border-color:#1f5fb0;color:#fff}
+  .kpi.accent .k-lbl,.kpi.accent .k-sub{color:#cfe2fb}
+  .grid{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-bottom:16px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;
+    box-shadow:0 2px 12px rgba(31,95,176,.05)}
+  .panel h2{font-size:14.5px;margin:0 0 14px;font-weight:800;color:var(--blue-d);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .panel h2 .tag{font-size:11px;font-weight:700;color:var(--muted);background:var(--sky);border-radius:6px;padding:2px 8px}
+  table{width:100%;border-collapse:collapse}
+  th,td{text-align:right;padding:10px 8px;font-size:13px;border-bottom:1px solid var(--line)}
+  th:first-child,td:first-child{text-align:left}
+  th{font-size:11px;color:var(--blue-d);text-transform:uppercase;letter-spacing:.3px;font-weight:800}
+  tbody tr:hover{background:var(--sky)}
+  .pg{font-weight:700}
+  .pill{display:inline-block;padding:2px 9px;border-radius:20px;font-size:12px;font-weight:800}
+  .pill.g{background:#e2f6ed;color:#1b8a55}.pill.a{background:#fdf1de;color:#b9791d}.pill.r{background:#fde6e4;color:#c43c34}.pill.n{background:#eef2f7;color:#90a2b6}
+  .bar{height:6px;border-radius:4px;background:var(--blue);margin-top:5px;opacity:.85}
+  .num{font-variant-numeric:tabular-nums}
+  canvas{max-width:100%}
+  .note{font-size:12.5px;color:#8a6d1f;background:#fff7ea;border:1px solid #f3e2bf;border-radius:10px;
+    padding:10px 13px;margin-bottom:16px;display:flex;gap:8px;align-items:flex-start}
+  .empty{text-align:center;color:var(--muted);padding:30px}
+  .foot{color:var(--muted);font-size:12px;margin-top:22px;border-top:1px solid var(--line);padding-top:14px;line-height:1.7}
+  code{background:#eef4fb;border:1px solid var(--line);border-radius:5px;padding:1px 6px;font-size:12px}
+  .tabs{display:flex;gap:8px;margin-bottom:16px;border-bottom:2px solid var(--line)}
+  .tab{background:none;border:none;border-bottom:3px solid transparent;margin-bottom:-2px;padding:10px 16px;
+    font-size:14.5px;font-weight:800;color:var(--muted);cursor:pointer}
+  .tab.on{color:var(--blue-d);border-bottom-color:var(--blue)}
+  .tablink{margin-left:auto;align-self:center;font-size:13px;font-weight:800;color:var(--blue-d);text-decoration:none;background:var(--sky);border:1px solid #d3e6fb;padding:7px 13px;border-radius:8px}
+  .tablink:hover{background:#dcebfb}
+  .hooks{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
+  .hook{border:1px solid var(--line);border-radius:12px;padding:13px;background:#fafdff}
+  .hook .x{font-size:11px;color:#fff;background:var(--green);border-radius:20px;padding:2px 9px;font-weight:800;float:right}
+  .hook b{display:block;font-size:14px;margin-bottom:4px}
+  .qq{border-left:3px solid var(--green);background:#f3f9f4;border-radius:0 8px 8px 0;padding:9px 12px;margin:9px 0;font-size:13px}
+  .qq .th{color:var(--muted);font-style:italic;margin-top:2px}
+  .rank{display:inline-block;width:22px;height:22px;border-radius:6px;background:var(--sky);color:var(--blue-d);font-weight:800;text-align:center;line-height:22px;font-size:12px;margin-right:6px}
+  .thkw{color:#9a6a2a;font-size:12px}
+  #tblCon td{vertical-align:top}#tblCon td.pcc{text-align:right;font-weight:800;color:var(--blue-d);white-space:nowrap}
+  @media(max-width:920px){.kpis{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:1fr}.hooks{grid-template-columns:1fr}}
+  /* ===== Sidebar layout (kiểu BICA) ===== */
+  .layout{display:flex;align-items:flex-start;min-height:100vh}
+  .side{width:248px;flex:none;background:#fff;border-right:1px solid var(--line);padding:16px 13px;position:sticky;top:0;height:100vh;overflow:auto}
+  .content{flex:1;min-width:0}
+  .brand{display:flex;align-items:center;gap:10px;padding:2px 6px 14px;border-bottom:1px solid var(--line);margin-bottom:14px}
+  .blogo{width:38px;height:38px;border-radius:11px;background:#1f2a44;color:#fff;display:flex;align-items:center;justify-content:center;font-size:19px}
+  .bname{font-weight:800;font-size:15px;color:var(--ink)}
+  .bsub{font-size:10px;font-weight:700;letter-spacing:1.2px;color:var(--muted)}
+  .sgroup{margin-bottom:15px}
+  .slabel{font-size:10.5px;font-weight:800;letter-spacing:.7px;color:var(--muted);text-transform:uppercase;margin:2px 6px 8px}
+  .sitem{display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:9px;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;margin-bottom:2px;text-decoration:none}
+  .sitem:hover{background:#f2f6fc}
+  .sitem.on{background:var(--sky);color:var(--blue-d)}
+  .sitem.dis{color:#b7bcc6;cursor:default}.sitem.dis:hover{background:none}
+  .sflag{width:26px;height:19px;border-radius:4px;background:#eef2f8;color:#2E4374;font-size:10px;font-weight:800;display:inline-flex;align-items:center;justify-content:center;flex:none}
+  .scount{margin-left:auto;font-size:11.5px;font-weight:800;color:var(--muted);background:#f0f2f6;border-radius:20px;padding:2px 9px}
+  .statuspill{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;color:#1b8a55;background:#eef7f0;border:1px solid #cdedd9;border-radius:10px;padding:8px 11px}
+  .side .tab{display:flex;align-items:center;gap:9px;width:100%;text-align:left;border:none;background:none;border-radius:9px;padding:9px 11px;font-size:14px;font-weight:700;color:var(--ink);cursor:pointer;margin-bottom:2px}
+  .side .tab.on{background:var(--sky);color:var(--blue-d)}.side .tab:hover{background:#f2f6fc}
+  .side .tablink{display:block;margin:0 0 2px;padding:9px 11px;border-radius:9px;background:none;border:none;font-size:14px;font-weight:700;color:var(--ink);text-decoration:none}
+  .side .tablink:hover{background:#f2f6fc}
+  .smodal{position:fixed;inset:0;background:rgba(20,25,40,.45);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:40px 16px;overflow:auto}
+  .smbox{background:#fff;border-radius:15px;max-width:760px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);position:relative}
+  .smx{position:absolute;top:14px;right:14px;border:none;background:#f1efe8;border-radius:9px;width:32px;height:32px;font-size:16px;cursor:pointer;color:var(--muted)}
+  @media(max-width:860px){.layout{flex-direction:column}.side{width:100%;height:auto;position:static;border-right:none;border-bottom:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<div class="layout">
+<aside class="side">
+  <div class="brand"><div class="blogo">📊</div><div><div class="bname">AVB SALE</div><div class="bsub">DASHBOARD 2026</div></div></div>
+  <div class="sgroup"><div class="slabel">🌐 Thị trường</div>
+    <div class="sitem on"><span class="sflag">TH</span> Thái <span class="scount" id="cntTH">—</span></div>
+    <div class="sitem dis"><span class="sflag">MY</span> Malay <span class="scount">—</span></div>
+    <div class="sitem dis"><span class="sflag">ID</span> Indo <span class="scount">sắp có</span></div>
+    <div class="sitem dis"><span class="sflag">PH</span> Phil <span class="scount">—</span></div>
+  </div>
+  <div class="sgroup"><div class="slabel">🔻 Lát cắt</div>
+    <button class="tab on" data-tab="sale">📊 Báo cáo bán hàng</button>
+    <button class="tab" data-tab="con">🧒 Vấn đề của con</button>
+    <a class="tablink" href="https://bao-cao-sp.pages.dev/" target="_blank">📚 SL bán theo SP ↗</a>
+  </div>
+  <div class="sgroup"><div class="statuspill"><span style="width:8px;height:8px;border-radius:50%;background:#1b8a55;display:inline-block"></span> Tự cập nhật mỗi 15p</div></div>
+  <div class="sgroup"><div class="slabel">⚙️ Cài đặt</div>
+    <div class="sitem" id="openSettings">🏷️ Cấu hình thẻ SP</div>
+  </div>
+</aside>
+<div class="content">
+<div class="wrap">
+  <div class="top">
+    <div>
+      <h1>📊 Báo cáo Sale Messenger</h1>
+      <div class="sub" id="period">—</div>
+    </div>
+    <div class="spacer"></div>
+    <span class="badge" id="mkt">🇹🇭 Thái Lan</span>
+    <span class="badge" style="background:#eef7f0;color:#1b8a55;border-color:#cdedd9">
+      <span style="width:8px;height:8px;border-radius:50%;background:#1877f2;display:inline-block"></span> Nguồn: Facebook</span>
+  </div>
+
+  <div id="tabSale">
+  <div class="filter" id="filter">
+    <button class="fbtn on" data-k="today">Hôm nay</button>
+    <button class="fbtn" data-k="yesterday">Hôm qua</button>
+    <button class="fbtn" data-k="this_month">Tháng này</button>
+    <button class="fbtn" data-k="last_month">Tháng trước</button>
+    <span class="custom">
+      <input type="date" id="dFrom"> <span style="color:var(--muted)">→</span> <input type="date" id="dTo">
+      <button class="fbtn" id="dApply" style="display:none">Xem</button>
+    </span>
+  </div>
+
+  <div class="note" id="warn" style="display:none"></div>
+
+  <div class="kpis" id="kpis"></div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>Phễu theo Page <span class="tag">KH tương tác → Đơn → Chốt</span></h2>
+      <canvas id="chPage" height="150"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Cơ cấu trạng thái đơn</h2>
+      <canvas id="chStatus" height="150"></canvas>
+    </div>
+  </div>
+
+  <div class="panel" id="dailyPanel" style="margin-bottom:16px">
+    <h2>Diễn biến theo ngày <span class="tag">KH tương tác · Đơn · Doanh thu</span></h2>
+    <canvas id="chDaily" height="90"></canvas>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Chi tiết theo Page Facebook</h2>
+    <div style="overflow:auto">
+      <table id="tblPage">
+        <thead><tr>
+          <th>Page</th><th>KH mới<br>tương tác</th><th>Số đơn</th><th>Đơn chốt</th>
+          <th>Tỉ lệ chốt</th><th>Đã giao</th><th>Hoàn</th><th>Tỉ lệ hoàn</th><th>Doanh thu</th>
+        </tr></thead>
+        <tbody></tbody><tfoot></tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel">
+    <h2>Theo nhân viên sale <span class="tag">đơn nguồn Facebook</span></h2>
+    <div style="overflow:auto">
+      <table id="tblSale">
+        <thead><tr>
+          <th>Nhân viên</th><th>Số đơn</th><th>Đơn chốt</th><th>Tỉ lệ chốt/đơn</th>
+          <th>Đã giao</th><th>Hoàn</th><th>Doanh thu</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Tỉ lệ chốt theo sản phẩm <span class="tag">SP CHÍNH (cuốn add đầu tiên) · tỉ lệ chốt = đơn chốt ÷ KH tương tác (mess tạo trong kỳ có gắn thẻ mã SP)</span></h2>
+    <div style="overflow:auto">
+      <table id="tblProd">
+        <thead><tr>
+          <th>Sản phẩm (sách)</th><th>KH tương tác</th><th>Số đơn</th><th>Đơn chốt</th><th>Tỉ lệ chốt</th>
+          <th>SL bán</th><th>Hoàn</th><th>Tỉ lệ hoàn</th><th>Doanh thu</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="panel" style="margin-bottom:16px">
+    <h2>💬 Mess &amp; tỉ lệ chốt theo SP <span class="tag">nguồn Meta Ads</span> <span class="tag" id="metaTag">kỳ: —</span></h2>
+    <div id="metaNote" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
+    <div style="overflow:auto">
+      <table id="tblMeta">
+        <thead><tr>
+          <th>Mã SP</th><th>Cuốn</th><th>💬 Mess</th><th>Số đơn</th><th>Đơn chốt</th>
+          <th>Tỉ lệ chốt</th><th>Chi phí ads (IB)</th><th>Cost/mess</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+  </div><!-- /tabSale -->
+
+  <div id="tabCon" style="display:none">
+    <div class="note">ⓘ Đọc full <b>360 hội thoại</b> page <b>Changgo Book - มุมอ่านหนังสือฯ</b> (980 tin shop + 637 tin khách). Khách <b>ít tự kể</b>, chủ yếu <b>gật theo "bảng hỏi" shop nhắn dò</b> → tỉ trọng = vấn đề được pitch nhiều + khách xác nhận (≈ vấn đề bán chạy). Dùng để lấy <b>từ khóa & góc content</b>.</div>
+    <div class="panel">
+      <h2>Tỉ trọng các vấn đề của con</h2>
+      <canvas id="chCon" height="150"></canvas>
+    </div>
+    <div class="panel">
+      <h2>Chi tiết + từ khóa tiếng Thái (cho content/ads)</h2>
+      <div style="overflow:auto"><table id="tblCon">
+        <thead><tr><th>Vấn đề của con</th><th>Từ khóa Thái</th><th class="pcc">Tỉ trọng</th></tr></thead><tbody></tbody>
+      </table></div>
+    </div>
+    <div class="panel">
+      <h2>📚 3 "hook" shop dùng nhiều nhất = 3 nhóm vấn đề bán chạy nhất</h2>
+      <div class="hooks">
+        <div class="hook"><span class="x">×77</span><b>เด็กพลัง… (Con tự lực)</b><div>Đánh: <b>bỏ cuộc · ỷ lại · thiếu động lực bên trong</b></div><div class="thkw">"เจอเรื่องยากนิดหน่อยก็ยอมแพ้ บอกว่าหนูทำไม่ได้"</div></div>
+        <div class="hook"><span class="x">×77</span><b>คำถามฝึกสมอง 400 ข้อ (400 câu luyện não)</b><div>Đánh: <b>tư duy logic · giảm màn hình</b></div><div class="thkw">"อยากให้ลูกฉลาดขึ้นแบบสนุก ๆ ไม่ต้องบังคับ"</div></div>
+        <div class="hook"><span class="x">×28</span><b>จ่าฝูงหมาป่า (Tư duy sói đầu đàn · 7–15 tuổi)</b><div>Đánh: <b>tự tin · kỷ luật · lãnh đạo · kiên trì</b></div><div class="thkw">"กล้ายกมือตอบในห้อง อดทนไม่ยอมแพ้ง่าย ๆ"</div></div>
+      </div>
+    </div>
+    <div class="panel">
+      <h2>💬 Khách tự nói (hiếm nhưng "đắt")</h2>
+      <div class="qq"><b>"Con em dính hết, chỉ thiếu mỗi biết chia sẻ"</b><div class="th">🇹🇭 ลูกมีทุกข้อ ยกเว้นข้อแบ่งปัน</div></div>
+      <div class="qq"><b>"Phải nhắc con ăn cơm suốt"</b> (lặp nhiều lần)<div class="th">🇹🇭 คอยเตือนการกินข้าวตลอด</div></div>
+      <div class="qq"><b>"Con nhạy cảm, dễ tổn thương cảm xúc"</b><div class="th">🇹🇭 อ่อนไหว เปราะบางทางอารมณ์</div></div>
+    </div>
+  </div>
+
+  <div id="tabSP" style="display:none">
+    <div class="sub" id="spSub" style="margin-bottom:14px">—</div>
+    <div class="kpis" id="spKpis" style="grid-template-columns:repeat(4,1fr)"></div>
+    <div class="grid">
+      <div class="panel"><h2>Tỉ trọng phân khúc <span class="tag">theo đơn SP bán chính</span></h2><canvas id="chSeg" height="170"></canvas></div>
+      <div class="panel"><h2>SL bán theo phân khúc <span class="tag">số cuốn bán chính</span></h2><canvas id="chSegQty" height="170"></canvas></div>
+    </div>
+    <div class="panel"><h2>Đơn theo tháng <span class="tag">toàn thời gian · theo phân khúc</span></h2><canvas id="chTimeline" height="85"></canvas></div>
+    <div class="grid">
+      <div class="panel"><h2>👶 Top đầu sách TRẺ EM</h2><canvas id="chTopKid" height="220"></canvas></div>
+      <div class="panel"><h2>🧑‍💼 Top đầu sách NGƯỜI LỚN</h2><canvas id="chTopAdult" height="220"></canvas></div>
+    </div>
+    <div class="panel"><h2>Chi tiết tất cả SP <span class="tag">SP bán chính = cuốn add đầu tiên</span></h2>
+      <div style="overflow:auto"><table id="tblSP">
+        <thead><tr><th>Mã</th><th>PK</th><th>Đầu sách</th><th>Đơn bán chính</th><th>SL bán chính</th><th>SL bán kèm</th><th>Tháng đỉnh</th><th>Vòng đời</th></tr></thead>
+        <tbody></tbody></table></div>
+    </div>
+  </div>
+
+  <div class="foot" id="foot"></div>
+</div>
+</div><!-- /content -->
+</div><!-- /layout -->
+
+<div id="settingsModal" class="smodal" style="display:none">
+  <div class="smbox">
+    <button id="smClose" class="smx">✕</button>
+    <h2 style="margin:0 0 4px">🏷️ Cấu hình thẻ SP</h2>
+    <div style="font-size:12.5px;color:var(--muted);margin-bottom:10px">Nhập <b>ID thẻ (STT tag)</b> + <b>mã SP</b> → web tự quy KH tương tác theo SP.</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin:10px 0">
+      <input id="tmId" placeholder="ID thẻ (vd 138)" style="width:150px;padding:8px 11px;border:1.5px solid #cfd8e6;border-radius:9px;font-size:14px">
+      <input id="tmSp" placeholder="Mã SP (vd A029)" style="width:150px;padding:8px 11px;border:1.5px solid #cfd8e6;border-radius:9px;font-size:14px;text-transform:uppercase">
+      <button id="tmAdd" class="fbtn" style="background:#2f6fed;color:#fff">+ Thêm / Cập nhật</button>
+      <span id="tmMsg" style="font-size:12.5px;font-weight:700"></span>
+    </div>
+    <div id="tmList" style="margin-bottom:12px;font-size:12.5px"></div>
+    <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Thẻ đã gán</div>
+    <div style="overflow:auto;max-height:46vh">
+      <table id="tblTags" style="font-size:13px"><thead><tr>
+        <th>ID thẻ</th><th>Mã SP</th><th>Tổng (tích lũy)</th><th>Hôm nay</th><th></th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+  </div>
+</div>
+
+<script src="data.js"></script>
+<script src="meta.js"></script>
+<script src="allsales.js"></script>
+<script src="tags.js"></script>
+<script>
+let D = window.REPORT_DATA;
+let META = window.META_DATA;
+let TAGINT = window.TAGINT_DATA || {tag_int:{},tag_sample:{},tag_total:{}};
+let TAGMAP = {};                       // { tagId : mãSP } — sếp nhập, lưu localStorage
+try{ TAGMAP = JSON.parse(localStorage.getItem('tagmap')||'{}'); }catch(e){}
+let curPreset = 'today';               // kỳ preset đang chọn (để map với Meta)
+const PRIO = ['A029','A043','A042'];    // mã SP ưu tiên hiển thị đầu
+const fmtN = n => Math.round(n||0).toLocaleString('vi-VN');
+const RATE_VND = 771;                       // 1 THB = 771 VND (đổi tỉ giá ở đây)
+const vnd = v => fmtN(v*RATE_VND)+'₫';      // doanh thu đầy đủ (VND)
+const vndShort = v => { const x=v*RATE_VND;
+  const s = x>=1e9?(x/1e9).toFixed(2)+' tỷ':x>=1e6?(x/1e6).toFixed(1)+' tr':x>=1e3?Math.round(x/1e3)+'k':String(Math.round(x));
+  return s+'₫'; };
+const pct = (a,b) => b>0 ? (100*a/b) : 0;
+const cleanSale = s => (s||'').replace(/^\d+_\s*/,'').trim() || '(Chưa gán)';
+const C = {blue:'#2f7fe0',blueD:'#1f5fb0',green:'#2bb673',amber:'#e8a13a',red:'#e5564d',sky:'#bfd9f5',muted:'#9bb0c6'};
+const NOTCLOSED = ['canceled','cancelled','wait_submit'];
+const isClosed = st => !NOTCLOSED.includes(st);
+
+// date helpers (local, tránh lệch timezone)
+const pad = n => String(n).padStart(2,'0');
+const fmt = dt => dt.getFullYear()+'-'+pad(dt.getMonth()+1)+'-'+pad(dt.getDate());
+const parseD = s => { const p=s.split('-'); return new Date(+p[0],+p[1]-1,+p[2]); };
+const addDays = (dt,n) => { const d=new Date(dt); d.setDate(d.getDate()+n); return d; };
+const viDate = dt => pad(dt.getDate())+'/'+pad(dt.getMonth()+1)+'/'+dt.getFullYear();
+
+let m, sym, T, charts={};
+
+function periodRange(key){
+  if(key==='today')      return [T, T];
+  if(key==='yesterday')  { const y=addDays(T,-1); return [y,y]; }
+  if(key==='this_month') return [new Date(T.getFullYear(),T.getMonth(),1), T];
+  if(key==='last_month') return [new Date(T.getFullYear(),T.getMonth()-1,1), new Date(T.getFullYear(),T.getMonth(),0)];
+}
+
+function aggregate(from,to){
+  const f=fmt(from), t=fmt(to);
+  const ords = m.orders.filter(o=>o.d>=f && o.d<=t);
+  const ints = m.interactions.filter(x=>x.d>=f && x.d<=t);
+  const pages={}, sales={}, statusCount={}, dayMap={}, prods={}, byCode={};
+
+  const ensurePage = pid => pages[pid] || (pages[pid]={id:pid,name:(m.pages_meta[pid]||pid),
+    orders:0,closed:0,delivered:0,returned:0,canceled:0,revenue:0,interactions:0});
+
+  for(const o of ords){
+    const p=ensurePage(o.pid);
+    p.orders++;
+    const cl=isClosed(o.st);
+    if(o.st==='canceled'||o.st==='cancelled') p.canceled++;
+    if(o.st==='delivered') p.delivered++;
+    if(o.st==='returned'||o.st==='returning') p.returned++;
+    if(cl){ p.closed++; p.revenue+=o.rev; }
+    // sale
+    const s=sales[o.sale]||(sales[o.sale]={name:o.sale,orders:0,closed:0,delivered:0,returned:0,revenue:0});
+    s.orders++; if(o.st==='delivered')s.delivered++; if(o.st==='returned'||o.st==='returning')s.returned++;
+    if(cl){s.closed++; s.revenue+=o.rev;}
+    // status
+    statusCount[o.st]=(statusCount[o.st]||0)+1;
+    // daily
+    const dd=dayMap[o.d]||(dayMap[o.d]={date:o.d,orders:0,revenue:0,interactions:0});
+    dd.orders++; if(cl)dd.revenue+=o.rev;
+    // sản phẩm: chỉ tính SP CHÍNH (cuốn add đầu tiên); cuốn bán kèm không tính
+    const ret=(o.st==='returned'||o.st==='returning');
+    if(o.main){
+      const pr=prods[o.main]||(prods[o.main]={name:o.main,code:o.mcode||'',orders:0,closed:0,returned:0,qty:0,revenue:0});
+      pr.orders++; if(ret)pr.returned++;
+      if(o.mcode && !pr.code) pr.code=o.mcode;
+      if(cl){ pr.closed++; pr.qty+=(o.mainq||0); pr.revenue+=o.rev; }
+    }
+    if(o.mcode){
+      const bc=byCode[o.mcode]||(byCode[o.mcode]={orders:0,closed:0,revenue:0});
+      bc.orders++; if(cl){bc.closed++; bc.revenue+=o.rev;}
+    }
+  }
+  for(const x of ints){
+    if(pages[x.pid]) pages[x.pid].interactions+=x.n;
+    const dd=dayMap[x.d]||(dayMap[x.d]={date:x.d,orders:0,revenue:0,interactions:0});
+    dd.interactions+=x.n;
+  }
+
+  const T_ = {orders:0,closed:0,delivered:0,returned:0,canceled:0,revenue:0,interactions:0};
+  for(const pid in pages){const p=pages[pid];for(const k in T_)T_[k]+=p[k];}
+
+  // incomplete = kỳ bắt đầu trước ngày sớm nhất có KH tương tác
+  const incomplete = m.interaction_from ? (f < m.interaction_from) : true;
+
+  return {from:f,to:t,
+    pages:Object.values(pages).filter(p=>p.orders>0||p.interactions>0),
+    sales:Object.values(sales).sort((a,b)=>b.orders-a.orders),
+    prods:Object.values(prods).sort((a,b)=>b.orders-a.orders),
+    byCode,
+    status:Object.entries(statusCount).map(([code,count])=>({code,label:(m.status_labels[code]||code),count})).sort((a,b)=>b.count-a.count),
+    daily:Object.values(dayMap).sort((a,b)=>a.date<b.date?-1:1),
+    tot:T_, incomplete};
+}
+
+// KH tương tác theo SP = tổng hội thoại-tag (đã map sang mã SP) trong kỳ
+function computeSpInt(from,to){
+  const res={}, ti=(TAGINT&&TAGINT.tag_int)||{}, f=fmt(from), t=fmt(to);
+  for(const tid in TAGMAP){ const sp=TAGMAP[tid]; if(!sp) continue;
+    const days=ti[tid]||{}; let s=0;
+    for(const dk in days){ if(dk>=f && dk<=t) s+=(+days[dk]||0); }
+    res[sp]=(res[sp]||0)+s;
+  }
+  return res;
+}
+let curFrom=null, curTo=null;
+function rerender(){ if(curFrom&&curTo) render(curFrom,curTo); }
+function render(from,to){
+  curFrom=from; curTo=to;
+  const A=aggregate(from,to);
+  A.spInt=computeSpInt(from,to);
+  const _cnt=document.getElementById('cntTH'); if(_cnt) _cnt.textContent=fmtN(A.tot.closed);
+  const single = (fmt(from)===fmt(to));
+  document.getElementById('period').textContent =
+    (single? viDate(from) : `${viDate(from)} → ${viDate(to)}`) + ` · cập nhật ${D.generated_at}`;
+
+  const closeRate = A.incomplete ? null : pct(A.tot.closed, A.tot.interactions);
+  const retRate   = pct(A.tot.returned, A.tot.delivered + A.tot.returned);
+
+  // cảnh báo thiếu KH tương tác
+  const warn=document.getElementById('warn');
+  if(A.incomplete){
+    warn.style.display='flex';
+    warn.innerHTML=`<span>⚠️</span><span>Kỳ này bắt đầu trước <b>${m.interaction_from?viDate(parseD(m.interaction_from)):'?'}</b> — “KH mới tương tác” (lấy từ Pancake Inbox) chỉ có ~15 ngày gần nhất nên <b>thiếu phần đầu kỳ</b>. Số KH tương tác & tỉ lệ chốt kỳ này <b>chưa đủ</b>; số đơn/chốt/hoàn/doanh thu vẫn chính xác.</span>`;
+  } else warn.style.display='none';
+
+  // KPI
+  const kpis=[
+    {lbl:'KH mới tương tác',val:A.incomplete?fmtN(A.tot.interactions)+' *':fmtN(A.tot.interactions),sub:A.incomplete?'*thiếu đầu kỳ':'khách inbox mới',accent:true},
+    {lbl:'Số đơn',val:fmtN(A.tot.closed),sub:`SĐT ${fmtN(A.tot.orders)} · hiệu suất chốt ${pct(A.tot.closed,A.tot.orders).toFixed(1)}% (${fmtN(A.tot.closed)}/${fmtN(A.tot.orders)})`},
+    {lbl:'Tỉ lệ chốt',val:closeRate===null?'—':closeRate.toFixed(1)+'%',sub:'đơn ÷ KH tương tác',
+      color:closeRate===null?C.muted:(closeRate>=15?C.green:closeRate>=8?C.amber:C.red)},
+    {lbl:'Đã giao TC',val:fmtN(A.tot.delivered),sub:`${fmtN(A.tot.canceled)} đơn hủy`},
+    {lbl:'Tỉ lệ hoàn',val:(A.tot.delivered+A.tot.returned)?retRate.toFixed(1)+'%':'—',sub:`${fmtN(A.tot.returned)} đơn hoàn`,
+      color:retRate>15?C.red:C.green},
+    {lbl:'Doanh thu (VND)',val:vnd(A.tot.revenue),sub:`đơn đã chốt · ×${RATE_VND}`,money:true},
+  ];
+  document.getElementById('kpis').innerHTML=kpis.map(k=>`
+    <div class="kpi ${k.accent?'accent':''}">
+      <div class="k-lbl">${k.lbl}</div>
+      <div class="k-val" style="${k.color?`color:${k.color};`:''}${k.money?'font-size:18px;':''}">${k.val}</div>
+      <div class="k-sub">${k.sub}</div></div>`).join('');
+
+  // bảng page
+  const pages=A.pages.slice().sort((a,b)=>b.interactions-a.interactions||b.orders-a.orders);
+  const maxRev=Math.max(...pages.map(p=>p.revenue),1);
+  const tb=document.querySelector('#tblPage tbody');
+  if(!pages.length){ tb.innerHTML=`<tr><td colspan="9" class="empty">Không có đơn Facebook trong kỳ này</td></tr>`; document.querySelector('#tblPage tfoot').innerHTML=''; }
+  else{
+    tb.innerHTML=pages.map(p=>{
+      const cr=pct(p.closed,p.interactions), rr=pct(p.returned,p.delivered+p.returned);
+      const crCell = (A.incomplete||!p.interactions)?'<span class="pill n">—</span>':`<span class="pill ${cr>=15?'g':cr>=8?'a':'r'}">${cr.toFixed(1)}%</span>`;
+      return `<tr>
+        <td class="pg">${p.name}</td>
+        <td class="num"><b>${A.incomplete?'~':''}${fmtN(p.interactions)}</b></td>
+        <td class="num">${fmtN(p.orders)}</td>
+        <td class="num">${fmtN(p.closed)}</td>
+        <td>${crCell}</td>
+        <td class="num">${fmtN(p.delivered)}</td>
+        <td class="num">${fmtN(p.returned)}</td>
+        <td>${(p.delivered+p.returned)?`<span class="pill ${rr>15?'r':'g'}">${rr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
+        <td class="num">${vnd(p.revenue)}<div class="bar" style="width:${Math.max(6,100*p.revenue/maxRev)}%"></div></td>
+      </tr>`;}).join('');
+    document.querySelector('#tblPage tfoot').innerHTML=`<tr style="font-weight:800;background:var(--sky)">
+      <td>TỔNG</td><td class="num">${A.incomplete?'~':''}${fmtN(A.tot.interactions)}</td><td class="num">${fmtN(A.tot.orders)}</td>
+      <td class="num">${fmtN(A.tot.closed)}</td><td>${closeRate===null?'<span class="pill n">—</span>':`<span class="pill ${closeRate>=15?'g':closeRate>=8?'a':'r'}">${closeRate.toFixed(1)}%</span>`}</td>
+      <td class="num">${fmtN(A.tot.delivered)}</td><td class="num">${fmtN(A.tot.returned)}</td>
+      <td>${(A.tot.delivered+A.tot.returned)?`<span class="pill ${retRate>15?'r':'g'}">${retRate.toFixed(1)}%</span>`:'—'}</td>
+      <td class="num">${vnd(A.tot.revenue)}</td></tr>`;
+  }
+
+  // bảng sale
+  const sb=document.querySelector('#tblSale tbody');
+  sb.innerHTML = A.sales.length ? A.sales.map(s=>{
+    const cr=pct(s.closed,s.orders);
+    return `<tr><td class="pg">${cleanSale(s.name)}</td>
+      <td class="num">${fmtN(s.orders)}</td><td class="num">${fmtN(s.closed)}</td>
+      <td><span class="pill ${cr>=70?'g':cr>=50?'a':'r'}">${s.orders?cr.toFixed(1)+'%':'—'}</span></td>
+      <td class="num">${fmtN(s.delivered)}</td><td class="num">${fmtN(s.returned)}</td>
+      <td class="num">${vnd(s.revenue)}</td></tr>`;}).join('')
+    : `<tr><td colspan="7" class="empty">Không có dữ liệu</td></tr>`;
+
+  // bảng sản phẩm
+  const pb=document.querySelector('#tblProd tbody');
+  pb.innerHTML = A.prods.length ? A.prods.map(p=>{
+    // KH tương tác theo SP = mess tạo trong kỳ có gắn thẻ mã SP (từ A.spInt — cần map thẻ tag Pancake)
+    const khtt = (A.spInt && p.code && A.spInt[p.code]!=null) ? A.spInt[p.code] : null;
+    const cr = (khtt!==null && khtt>0) ? pct(p.closed,khtt) : null;
+    const rr=pct(p.returned,p.closed+p.returned);
+    return `<tr><td class="pg">${p.name}</td>
+      <td class="num">${khtt===null?'—':fmtN(khtt)}</td>
+      <td class="num">${fmtN(p.orders)}</td><td class="num">${fmtN(p.closed)}</td>
+      <td><span class="pill ${cr===null?'':cr>=30?'g':cr>=15?'a':'r'}">${cr===null?'—':cr.toFixed(1)+'%'}</span></td>
+      <td class="num">${fmtN(p.qty)}</td><td class="num">${fmtN(p.returned)}</td>
+      <td><span class="pill ${rr>15?'r':'g'}">${(p.closed+p.returned)?rr.toFixed(1)+'%':'—'}</span></td>
+      <td class="num">${vnd(p.revenue)}</td></tr>`;}).join('')
+    : `<tr><td colspan="9" class="empty">Không có dữ liệu sản phẩm trong kỳ</td></tr>`;
+
+  renderMeta(A);
+  drawCharts(A,pages,single);
+
+  document.getElementById('foot').innerHTML=
+    `Nguồn: Pancake POS (đơn) + Pancake Inbox/pages.fm (KH tương tác). · Dữ liệu 45 ngày, lọc theo kỳ tại trình duyệt.<br>
+     Cập nhật số mới: chạy <code>refresh.ps1</code> rồi deploy lại. <b>Tỉ lệ chốt</b> = Số đơn ÷ KH mới tương tác · <b>Tỉ lệ hoàn</b> = Hoàn ÷ (Đã giao + Hoàn).`;
+}
+
+function renderMeta(A){
+  const tag=document.getElementById('metaTag'), note=document.getElementById('metaNote'), tb=document.querySelector('#tblMeta tbody');
+  const lbl={today:'Hôm nay',yesterday:'Hôm qua',this_month:'Tháng này',last_month:'Tháng trước'};
+  if(!META||!META.sp){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="8" class="empty">—</td></tr>'; return; }
+  if(!curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Meta chỉ có theo 4 kỳ nút. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem mess theo SP.'; tb.innerHTML='<tr><td colspan="8" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
+  tag.textContent='kỳ: '+(lbl[curPreset]||curPreset);
+  note.innerHTML='Mess = hội thoại bắt đầu từ quảng cáo (cả IB + CD). Chi phí chỉ tính camp <b>IB</b> (CD chạy web không tính). Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng với các SP trên = đúng <b>TỔNG</b>.';
+  let rows=Object.keys(META.sp).map(c=>{
+    const t=(META.sp[c].t||{})[curPreset]||{mess:0,spend:0};
+    const bc=A.byCode[c]||{orders:0,closed:0};
+    return {code:c,name:META.sp[c].name||'',mess:t.mess||0,spend:t.spend||0,orders:bc.orders,closed:bc.closed};
+  }).filter(r=>r.mess>0||r.orders>0);
+  rows.sort((a,b)=>{ const pa=PRIO.indexOf(a.code),pb=PRIO.indexOf(b.code);
+    if(pa>=0||pb>=0) return (pa<0?99:pa)-(pb<0?99:pb); return b.mess-a.mess; });
+  const sumO=rows.reduce((a,r)=>a+r.orders,0), sumC=rows.reduce((a,r)=>a+r.closed,0);
+  const sumMess=rows.reduce((a,r)=>a+r.mess,0), sumSpend=rows.reduce((a,r)=>a+r.spend,0);
+  const otherO=Math.max(0,A.tot.orders-sumO), otherC=Math.max(0,A.tot.closed-sumC);
+  const body=rows.map(r=>{
+    const cr=pct(r.closed,r.mess), cpm=r.mess>0?r.spend/r.mess:0, prio=PRIO.includes(r.code);
+    return `<tr style="${prio?'background:#fffdf0':''}">
+      <td class="pg">${r.code}${prio?' ⭐':''}</td><td>${r.name||'—'}</td>
+      <td class="num"><b>${fmtN(r.mess)}</b></td><td class="num">${fmtN(r.orders)}</td><td class="num">${fmtN(r.closed)}</td>
+      <td><span class="pill ${cr>=30?'g':cr>=15?'a':'r'}">${r.mess?cr.toFixed(1)+'%':'—'}</span></td>
+      <td class="num">${r.spend?fmtN(r.spend)+'₫':'—'}</td>
+      <td class="num">${cpm?fmtN(cpm)+'₫':'—'}</td></tr>`;}).join('');
+  const otherRow=(otherO>0||otherC>0)?`<tr><td class="pg" style="color:var(--muted)">—</td><td style="color:var(--muted)">SP khác (không chạy Meta)</td><td class="num">—</td><td class="num">${fmtN(otherO)}</td><td class="num">${fmtN(otherC)}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>`:'';
+  const totalRow=`<tr style="font-weight:800;background:var(--sky)"><td>TỔNG</td><td></td><td class="num">${fmtN(sumMess)}</td><td class="num">${fmtN(A.tot.orders)}</td><td class="num">${fmtN(A.tot.closed)}</td><td></td><td class="num">${sumSpend?fmtN(sumSpend)+'₫':'—'}</td><td></td></tr>`;
+  tb.innerHTML = (rows.length||otherO||otherC) ? (body+otherRow+totalRow) : '<tr><td colspan="8" class="empty">Không có mess/đơn trong kỳ</td></tr>';
+}
+
+let spDrawn=false, spChs={};
+function drawSP(){
+  const S=window.SALES_DATA, sub=document.getElementById('spSub');
+  if(!S||!S.books){ sub.textContent='Đang xử lý dữ liệu bán hàng toàn thời gian…'; return; }
+  if(spDrawn) return; spDrawn=true;
+  sub.innerHTML=`Toàn bộ <b>${fmtN(S.total_orders)}</b> đơn (từ đầu đến nay) · ${fmtN(S.books.length)} đầu sách · cập nhật ${S.generated_at}`;
+  const sg=S.segments;
+  const kpi=[{l:'Tổng đơn',v:fmtN(S.total_orders)},{l:'Số đầu sách',v:fmtN(S.books.length)},
+    {l:'👶 Đơn trẻ em',v:fmtN(sg.treem.orders),c:'#1f5fb0'},{l:'🧑‍💼 Đơn người lớn',v:fmtN(sg.nguoilon.orders),c:'#c43c8b'}];
+  document.getElementById('spKpis').innerHTML=kpi.map(k=>`<div class="kpi"><div class="k-lbl">${k.l}</div><div class="k-val" style="${k.c?'color:'+k.c:''}">${k.v}</div></div>`).join('');
+  const cut=n=>(n||'').length>26?n.slice(0,26)+'…':n;
+  const moVi=m=>m?('T'+(+m.split('-')[1])+'/'+m.split('-')[0].slice(2)):'—';
+  const kid=S.books.filter(b=>b.seg==='treem').slice(0,10), adult=S.books.filter(b=>b.seg==='nguoilon').slice(0,10);
+  spChs.seg=new Chart(document.getElementById('chSeg'),{type:'doughnut',
+    data:{labels:['Trẻ em','Người lớn','Khác'],datasets:[{data:[sg.treem.orders,sg.nguoilon.orders,sg.khac.orders],backgroundColor:['#5a9be8','#e86aa6','#cbd5e1'],borderWidth:2,borderColor:'#fff'}]},
+    options:{cutout:'56%',plugins:{legend:{position:'bottom',labels:{font:{size:12}}}}}});
+  spChs.qty=new Chart(document.getElementById('chSegQty'),{type:'bar',
+    data:{labels:['Trẻ em','Người lớn','Khác'],datasets:[{data:[sg.treem.qty,sg.nguoilon.qty,sg.khac.qty],backgroundColor:['#5a9be8','#e86aa6','#cbd5e1'],borderRadius:6}]},
+    options:{plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtN(c.parsed.y)+' cuốn'}}},scales:{x:{grid:{display:false}},y:{ticks:{font:{size:11}}}}}});
+  const topBar=(id,arr,col)=>new Chart(document.getElementById(id),{type:'bar',
+    data:{labels:arr.map(b=>cut(b.name)),datasets:[{data:arr.map(b=>b.orders),backgroundColor:col,borderRadius:4}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>fmtN(c.parsed.x)+' đơn'}}},
+      scales:{x:{grid:{color:'#eef4fb'},ticks:{font:{size:10}}},y:{grid:{display:false},ticks:{font:{size:10.5}}}}}});
+  spChs.kid=topBar('chTopKid',kid,'#5a9be8'); spChs.adult=topBar('chTopAdult',adult,'#e86aa6');
+  // timeline đơn theo tháng (toàn thời gian) theo phân khúc
+  const moTot={};
+  S.books.forEach(b=>(b.monthly||[]).forEach(x=>{ const e=moTot[x.m]||(moTot[x.m]={treem:0,nguoilon:0}); e[b.seg]=(e[b.seg]||0)+x.o; }));
+  const mos=Object.keys(moTot).sort();
+  spChs.tl=new Chart(document.getElementById('chTimeline'),{
+    data:{labels:mos.map(moVi),datasets:[
+      {type:'line',label:'👶 Trẻ em',data:mos.map(m=>moTot[m].treem||0),borderColor:'#2f7fe0',backgroundColor:'rgba(47,127,224,.08)',fill:true,tension:.3,pointRadius:2,borderWidth:2},
+      {type:'line',label:'🧑‍💼 Người lớn',data:mos.map(m=>moTot[m].nguoilon||0),borderColor:'#e86aa6',backgroundColor:'rgba(232,106,166,.08)',fill:true,tension:.3,pointRadius:2,borderWidth:2}]},
+    options:{interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{font:{size:11}}},tooltip:{callbacks:{label:c=>c.dataset.label+': '+fmtN(c.parsed.y)+' đơn'}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:10}}},y:{grid:{color:'#eef4fb'},ticks:{font:{size:10}}}}}});
+  const sl={treem:'👶 Trẻ em',nguoilon:'🧑‍💼 Người lớn',khac:'—'};
+  document.querySelector('#tblSP tbody').innerHTML=S.books.map(b=>`<tr>
+    <td class="pg">${b.code}</td><td>${sl[b.seg]||b.seg}</td><td>${b.name}</td>
+    <td class="num"><b>${fmtN(b.orders)}</b></td><td class="num">${fmtN(b.qty)}</td><td class="num">${fmtN(b.kem)}</td>
+    <td class="num">${moVi(b.peak_m)}<div style="font-size:10px;color:var(--muted)">${fmtN(b.peak_o)} đơn</div></td>
+    <td class="num"><b>${b.span_m||0}</b> th<div style="font-size:10px;color:var(--muted)">${b.strong_m||0} th mạnh</div></td></tr>`).join('');
+}
+
+function drawCharts(A,pages,single){
+  Object.values(charts).forEach(c=>c&&c.destroy());
+  const shortName=n=>n.replace(/^Changgo\s*(Book|book)\s*-?\s*/i,'').slice(0,20)||n.slice(0,20);
+  // phễu page
+  charts.page=new Chart(document.getElementById('chPage'),{type:'bar',
+    data:{labels:pages.map(p=>shortName(p.name)),datasets:[
+      {label:'KH tương tác',data:pages.map(p=>p.interactions),backgroundColor:C.sky,borderRadius:5},
+      {label:'Số đơn',data:pages.map(p=>p.orders),backgroundColor:C.blue,borderRadius:5},
+      {label:'Đơn chốt',data:pages.map(p=>p.closed),backgroundColor:C.green,borderRadius:5}]},
+    options:{plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+      scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'#eef4fb'},ticks:{font:{size:11}}}}}});
+  // status donut
+  const stColors={delivered:C.green,canceled:C.red,returned:'#d98b8b',returning:'#e0a3a3',waitting:C.amber,
+    shipped:C.blue,submitted:'#7fb0e6',printed:'#a9c6ec',pending:'#c9d8ea',new:'#dbe6f3',wait_submit:'#e7eef6'};
+  charts.status=new Chart(document.getElementById('chStatus'),{type:'doughnut',
+    data:{labels:A.status.map(s=>s.label),datasets:[{data:A.status.map(s=>s.count),
+      backgroundColor:A.status.map(s=>stColors[s.code]||C.muted),borderWidth:2,borderColor:'#fff'}]},
+    options:{cutout:'58%',plugins:{legend:{position:'right',labels:{boxWidth:11,font:{size:11.5}}}}}});
+  // daily
+  const dp=document.getElementById('dailyPanel');
+  if(single){ dp.style.display='none'; }
+  else{
+    dp.style.display='';
+    const dl=A.daily, lbl=dl.map(d=>{const p=d.date.split('-');return p[2]+'/'+p[1]});
+    charts.daily=new Chart(document.getElementById('chDaily'),{
+      data:{labels:lbl,datasets:[
+        {type:'line',label:'KH tương tác',data:dl.map(d=>d.interactions),borderColor:C.blueD,backgroundColor:'rgba(47,127,224,.08)',fill:true,tension:.35,yAxisID:'y',pointRadius:2,borderWidth:2},
+        {type:'line',label:'Số đơn',data:dl.map(d=>d.orders),borderColor:C.green,tension:.35,yAxisID:'y',pointRadius:2,borderWidth:2},
+        {type:'bar',label:'Doanh thu (VND)',data:dl.map(d=>Math.round(d.revenue*RATE_VND)),backgroundColor:'rgba(232,161,58,.35)',yAxisID:'y1',borderRadius:4}]},
+      options:{interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+        scales:{x:{grid:{display:false},ticks:{font:{size:11}}},
+          y:{position:'left',grid:{color:'#eef4fb'},ticks:{font:{size:11}}},
+          y1:{position:'right',grid:{display:false},ticks:{font:{size:11}}}}}});
+  }
+}
+
+// init
+if(!D||!D.markets||!D.markets.length){
+  document.getElementById('period').textContent='Chưa có dữ liệu — chạy refresh.ps1 để tạo data.js';
+}else{
+  m=D.markets[0]; sym=m.symbol||'฿'; T=parseD(D.today);
+  document.getElementById('mkt').textContent=`${m.flag||'🇹🇭'} ${m.name}`;
+
+  // ô chọn ngày tùy ý
+  const dFrom=document.getElementById('dFrom'), dTo=document.getElementById('dTo');
+  const minD=fmt(new Date(T.getFullYear(),T.getMonth()-1,1)), maxD=fmt(T);  // tới đầu tháng trước
+  dFrom.min=dTo.min=minD; dFrom.max=dTo.max=maxD;
+
+  // nút preset — đồng bộ luôn 2 ô lịch theo kỳ
+  document.querySelectorAll('.fbtn[data-k]').forEach(b=>b.addEventListener('click',()=>{
+    document.querySelectorAll('.fbtn[data-k]').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    curPreset=b.dataset.k;
+    const [f,t]=periodRange(b.dataset.k);
+    dFrom.value=fmt(f); dTo.value=fmt(t);     // ô lịch nhảy theo
+    render(f,t);
+  }));
+
+  function applyCustom(){
+    if(!dFrom.value||!dTo.value) return;
+    let f=parseD(dFrom.value), t=parseD(dTo.value);
+    if(f>t){ const x=f; f=t; t=x; dFrom.value=fmt(f); dTo.value=fmt(t); }
+    document.querySelectorAll('.fbtn[data-k]').forEach(x=>x.classList.remove('on'));
+    curPreset=null;
+    render(f,t);
+  }
+  // chọn ngày là tự nhảy luôn, không cần ấn Xem
+  dFrom.addEventListener('change',applyCustom);
+  dTo.addEventListener('change',applyCustom);
+  const dApplyBtn=document.getElementById('dApply');
+  if(dApplyBtn) dApplyBtn.addEventListener('click',applyCustom);
+
+  const [f0,t0]=periodRange('today'); dFrom.value=fmt(f0); dTo.value=fmt(t0); render(f0,t0); // mặc định Hôm nay
+}
+
+// ---- TAB: Báo cáo bán hàng / Vấn đề của con ----
+const CON=[
+  ['Thiếu kỷ luật / nề nếp',10.4,'วินัย · มีระเบียบ'],
+  ['Nhút nhát / thiếu tự tin / không dám',7.8,'ไม่กล้า · มั่นใจ · กล้าแสดงออก · ขี้อาย · ยกมือ'],
+  ['Dễ bỏ cuộc / "con làm không được"',7.4,'ยอมแพ้ · หนูทำไม่ได้ · ไม่อดทน · ท้อ'],
+  ['Cần tư duy / thông minh / ham học',6.9,'คิดวิเคราะห์ · ไหวพริบ · ตรรกะ · ฝึกสมอง · เสริมปัญญา'],
+  ['Không tự giác / phải nhắc / ỷ lại',6.9,'คอยเตือน · ไม่ทำเอง · พึ่งพาคนอื่น'],
+  ['Nghiện điện thoại / màn hình',5.6,'ติดมือถือ · ติดจอ · ลดเวลาหน้าจอ · เล่นเกม'],
+  ['Thiếu động lực từ bên trong',5.2,'แรงผลักดันจากภายใน · แรงบันดาลใจ'],
+  ['Chưa có tố chất lãnh đạo / bản lĩnh',4.3,'ผู้นำตัวเอง · จ่าฝูงหมาป่า'],
+  ['Nhạy cảm / dễ tổn thương / hay khóc, cáu',1.7,'เปราะบางทางอารมณ์ · อ่อนไหว · ฉุนเฉียว · ร้องไห้'],
+];
+let conDrawn=false;
+function drawCon(){
+  if(conDrawn) return; conDrawn=true;
+  document.querySelector('#tblCon tbody').innerHTML=CON.map((d,i)=>
+    `<tr><td><span class="rank">${i+1}</span>${d[0]}</td><td class="thkw">${d[2]}</td><td class="pcc">${String(d[1]).replace('.',',')}%</td></tr>`).join('');
+  new Chart(document.getElementById('chCon'),{type:'bar',
+    data:{labels:CON.map(d=>d[0]),datasets:[{data:CON.map(d=>d[1]),backgroundColor:'#5a9be8',borderRadius:5}]},
+    options:{indexAxis:'y',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.parsed.x+'%'}}},
+      scales:{x:{grid:{color:'#eef4fb'},ticks:{callback:v=>v+'%',font:{size:11}}},y:{grid:{display:false},ticks:{font:{size:11}}}}}});
+}
+document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('on')); b.classList.add('on');
+  const t=b.dataset.tab;
+  document.getElementById('tabSale').style.display = t==='sale'?'':'none';
+  document.getElementById('tabSP').style.display   = t==='sp'?'':'none';
+  document.getElementById('tabCon').style.display  = t==='con'?'':'none';
+  if(t==='con') drawCon();
+  if(t==='sp')  drawSP();
+}));
+
+// ---- Ô GÁN THẺ TAG → MÃ SP ----
+function renderTagMapUI(){
+  const today=(D&&D.today)||'';
+  const ti=(TAGINT&&TAGINT.tag_int)||{}, tot=(TAGINT&&TAGINT.tag_total)||{};
+  // dòng gợi ý: các thẻ đang có dữ liệu (bấm để điền ID)
+  const detected=Object.keys(tot).sort((a,b)=>tot[b]-tot[a]).slice(0,12);
+  document.getElementById('tmList').innerHTML = detected.length
+    ? '<span style="color:var(--muted)">💡 Thẻ đang có dữ liệu (bấm để chọn ID): </span>'+detected.map(id=>`<b data-fill="${id}" style="cursor:pointer;color:var(--blue-d)">${id}</b><span style="color:var(--muted);font-size:11px">(${fmtN(tot[id])})</span>`).join(' · ')
+    : '<span style="color:var(--muted)">Chưa có dữ liệu thẻ (đợi cập nhật).</span>';
+  // bảng: CHỈ thẻ đã gán
+  const keys=Object.keys(TAGMAP).filter(k=>TAGMAP[k]);
+  document.querySelector('#tblTags tbody').innerHTML = keys.length ? keys.map(id=>{
+    const td=(ti[id]||{})[today]||0, tt=tot[id]||0;
+    return `<tr><td class="pg"><b>${id}</b></td><td><b style="color:var(--green)">${TAGMAP[id]}</b></td><td class="num">${fmtN(tt)}</td><td class="num">${fmtN(td)}</td><td><b data-del="${id}" style="cursor:pointer;color:#c0392b">✕ xóa</b></td></tr>`;
+  }).join('') : '<tr><td colspan="5" class="empty">Chưa gán thẻ nào — nhập ID + mã SP rồi bấm Thêm.</td></tr>';
+  document.querySelectorAll('#tblTags [data-del]').forEach(b=>b.onclick=()=>{ delete TAGMAP[b.dataset.del]; saveTagmap(); });
+  document.querySelectorAll('#tmList [data-fill]').forEach(b=>b.onclick=()=>{ document.getElementById('tmId').value=b.dataset.fill; document.getElementById('tmSp').focus(); });
+}
+function saveTagmap(){ localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); renderTagMapUI(); rerender(); }
+document.getElementById('tmAdd').addEventListener('click',()=>{
+  const id=document.getElementById('tmId').value.trim(), sp=document.getElementById('tmSp').value.trim().toUpperCase();
+  const msg=document.getElementById('tmMsg');
+  if(!/^\d+$/.test(id)){ msg.style.color='var(--red)'; msg.textContent='ID thẻ phải là số'; return; }
+  if(!sp){ msg.style.color='var(--red)'; msg.textContent='Nhập mã SP'; return; }
+  TAGMAP[id]=sp; saveTagmap();
+  document.getElementById('tmId').value=''; document.getElementById('tmSp').value='';
+  msg.style.color='var(--green)'; msg.textContent='✓ Đã gán '+id+' → '+sp;
+});
+document.getElementById('tmSp').addEventListener('keydown',e=>{ if(e.key==='Enter') document.getElementById('tmAdd').click(); });
+document.getElementById('openSettings').addEventListener('click',()=>{ document.getElementById('settingsModal').style.display='flex'; renderTagMapUI(); });
+document.getElementById('smClose').addEventListener('click',()=>{ document.getElementById('settingsModal').style.display='none'; });
+document.getElementById('settingsModal').addEventListener('click',e=>{ if(e.target.id==='settingsModal') e.currentTarget.style.display='none'; });
+renderTagMapUI();
+
+// ---- TỰ CẬP NHẬT mỗi 5 phút (nạp lại data.js, không reload trang) ----
+async function refreshData(){
+  try{
+    const txt = await (await fetch('data.js?cb='+Date.now(), {cache:'no-store'})).text();
+    (0,eval)(txt);                       // cập nhật window.REPORT_DATA
+    if(!window.REPORT_DATA || !window.REPORT_DATA.markets) return;
+    try{ const mt = await (await fetch('meta.js?cb='+Date.now(), {cache:'no-store'})).text(); (0,eval)(mt); META=window.META_DATA; }catch(e){}
+    try{ const tg = await (await fetch('tags.js?cb='+Date.now(), {cache:'no-store'})).text(); (0,eval)(tg); TAGINT=window.TAGINT_DATA; renderTagMapUI(); }catch(e){}
+    D = window.REPORT_DATA; m = D.markets[0]; T = parseD(D.today);
+    const act = document.querySelector('.fbtn[data-k].on');
+    if(act){ const [f,t]=periodRange(act.dataset.k); render(f,t); }   // vẽ lại kỳ đang chọn
+  }catch(e){ /* bỏ qua, thử lại lần sau */ }
+}
+setInterval(refreshData, 5*60*1000);     // 5 phút
+</script>
+</body>
+</html>

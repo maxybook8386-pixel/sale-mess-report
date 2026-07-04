@@ -1,0 +1,33 @@
+name: Cap nhat so lieu Sale
+
+on:
+  workflow_dispatch: {}
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Tai file hien tai (de merge tags / du phong)
+        run: |
+          curl -s "https://sale-mess-th.pages.dev/tags.js" -o public/tags.js || true
+          curl -s "https://sale-mess-th.pages.dev/meta.js" -o public/meta.js || true
+
+      - name: Pull don + tags + meta
+        shell: pwsh
+        env:
+          PANCAKE_TOKEN: ${{ secrets.PANCAKE_TOKEN }}
+          META_TOKEN: ${{ secrets.META_TOKEN }}
+          POS_APIKEY: ${{ secrets.POS_APIKEY }}
+        run: |
+          ./scripts/refresh.ps1
+          ./scripts/pull_tags.ps1
+          ./scripts/pull_meta.ps1
+
+      - name: Deploy Cloudflare Pages
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx wrangler@latest pages deploy public --project-name=sale-mess-th --branch=main --commit-dirty=true
