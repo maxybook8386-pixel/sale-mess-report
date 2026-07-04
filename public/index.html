@@ -120,7 +120,8 @@
     <button class="tab" data-tab="con">🧒 Vấn đề của con</button>
     <a class="tablink" href="https://bao-cao-sp.pages.dev/" target="_blank">📚 SL bán theo SP ↗</a>
   </div>
-  <div class="sgroup"><div class="statuspill"><span style="width:8px;height:8px;border-radius:50%;background:#1b8a55;display:inline-block"></span> Tự cập nhật mỗi 15p</div></div>
+  <div class="sgroup"><button id="btnUpdate" style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(47,127,224,.3)">🔄 Cập nhật số liệu</button>
+    <div id="updNote" style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center">Bấm để lấy số liệu mới nhất</div></div>
   <div class="sgroup"><div class="slabel">⚙️ Cài đặt</div>
     <div class="sitem" id="openSettings">🏷️ Cấu hình thẻ SP</div>
   </div>
@@ -736,6 +737,32 @@ async function refreshData(){
   }catch(e){ /* bỏ qua, thử lại lần sau */ }
 }
 setInterval(refreshData, 5*60*1000);     // 5 phút
+
+// ===== Nút CẬP NHẬT: kích GitHub Actions pull + deploy, chờ data mới rồi tải lại =====
+(function(){
+  const btn=document.getElementById('btnUpdate'), note=document.getElementById('updNote');
+  if(!btn) return;
+  const WK='https://sale-mess-worker.changgo-avb.workers.dev/trigger';
+  btn.addEventListener('click', async ()=>{
+    const oldGen=(window.REPORT_DATA&&window.REPORT_DATA.generated_at)||'';
+    btn.disabled=true; btn.textContent='⏳ Đang cập nhật…';
+    note.textContent='Đang kéo số liệu mới (~4–5 phút), đừng tắt trang nhé…';
+    try{
+      const r=await fetch(WK); if(!(await r.text()).includes('ok')) throw 0;
+    }catch(e){ btn.disabled=false; btn.textContent='🔄 Cập nhật số liệu'; note.textContent='❌ Lỗi kích cập nhật, thử lại.'; return; }
+    let tries=0;
+    const timer=setInterval(async ()=>{
+      tries++;
+      note.textContent=`⏳ Đang xử lý… (${tries*15}s / ~5 phút)`;
+      try{
+        const txt=await (await fetch('data.js?cb='+Date.now(),{cache:'no-store'})).text();
+        const mm=txt.match(/"generated_at":\s*"([^"]*)"/);
+        if(mm && mm[1]!==oldGen){ clearInterval(timer); note.textContent='✅ Xong! Đang tải lại…'; setTimeout(()=>location.reload(),800); }
+      }catch(e){}
+      if(tries>44){ clearInterval(timer); btn.disabled=false; btn.textContent='🔄 Cập nhật số liệu'; note.textContent='Quá lâu — thử tải lại trang thủ công.'; }
+    }, 15000);
+  });
+})();
 </script>
 </body>
 </html>
