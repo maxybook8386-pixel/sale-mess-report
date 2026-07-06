@@ -18,6 +18,7 @@ jobs:
       - name: Pull don + tags + meta
         shell: pwsh
         env:
+          TZ: Asia/Ho_Chi_Minh
           PANCAKE_TOKEN: ${{ secrets.PANCAKE_TOKEN }}
           META_TOKEN: ${{ secrets.META_TOKEN }}
           POS_APIKEY: ${{ secrets.POS_APIKEY }}
