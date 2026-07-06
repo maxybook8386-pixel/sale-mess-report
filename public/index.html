@@ -155,14 +155,13 @@
 
   <div class="kpis" id="kpis"></div>
 
-  <div class="grid">
-    <div class="panel">
-      <h2>Phễu theo Page <span class="tag">KH tương tác → Đơn → Chốt</span></h2>
-      <canvas id="chPage" height="150"></canvas>
-    </div>
-    <div class="panel">
-      <h2>Cơ cấu trạng thái đơn</h2>
-      <canvas id="chStatus" height="150"></canvas>
+  <div class="panel" style="margin-bottom:16px">
+    <h2>Biến động theo ngày <span class="tag">KH tương tác · SĐT · đơn chốt · doanh thu / ngày (mới nhất trên đầu)</span></h2>
+    <div style="overflow:auto">
+      <table id="tblDaily">
+        <thead><tr><th>Ngày</th><th>KH tương tác</th><th>SĐT</th><th>Đơn chốt</th><th>Tỉ lệ chốt</th><th>Doanh thu</th></tr></thead>
+        <tbody></tbody>
+      </table>
     </div>
   </div>
 
@@ -191,19 +190,6 @@
         <thead><tr>
           <th>Nhân viên</th><th>Số đơn</th><th>Đơn chốt</th><th>Tỉ lệ chốt/đơn</th>
           <th>Đã giao</th><th>Hoàn</th><th>Doanh thu</th>
-        </tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
-
-  <div class="panel" style="margin-bottom:16px">
-    <h2>Tỉ lệ chốt theo sản phẩm <span class="tag">SP CHÍNH (cuốn add đầu tiên) · tỉ lệ chốt = đơn chốt ÷ KH tương tác (mess tạo trong kỳ có gắn thẻ mã SP)</span></h2>
-    <div style="overflow:auto">
-      <table id="tblProd">
-        <thead><tr>
-          <th>Sản phẩm (sách)</th><th>KH tương tác</th><th>Số đơn</th><th>Đơn chốt</th><th>Tỉ lệ chốt</th>
-          <th>SL bán</th><th>Hoàn</th><th>Tỉ lệ hoàn</th><th>Doanh thu</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -362,8 +348,8 @@ function aggregate(from,to){
     // status
     statusCount[o.st]=(statusCount[o.st]||0)+1;
     // daily
-    const dd=dayMap[o.d]||(dayMap[o.d]={date:o.d,orders:0,revenue:0,interactions:0});
-    dd.orders++; if(cl)dd.revenue+=o.rev;
+    const dd=dayMap[o.d]||(dayMap[o.d]={date:o.d,orders:0,closed:0,revenue:0,interactions:0});
+    dd.orders++; if(cl){dd.closed++; dd.revenue+=o.rev;}
     // sản phẩm: chỉ tính SP CHÍNH (cuốn add đầu tiên); cuốn bán kèm không tính
     const ret=(o.st==='returned'||o.st==='returning');
     if(o.main){
@@ -379,7 +365,7 @@ function aggregate(from,to){
   }
   for(const x of ints){
     if(pages[x.pid]) pages[x.pid].interactions+=x.n;
-    const dd=dayMap[x.d]||(dayMap[x.d]={date:x.d,orders:0,revenue:0,interactions:0});
+    const dd=dayMap[x.d]||(dayMap[x.d]={date:x.d,orders:0,closed:0,revenue:0,interactions:0});
     dd.interactions+=x.n;
   }
 
@@ -496,21 +482,17 @@ function render(from,to){
       <td class="num">${vnd(s.revenue)}</td></tr>`;}).join('')
     : `<tr><td colspan="7" class="empty">Không có dữ liệu</td></tr>`;
 
-  // bảng sản phẩm
-  const pb=document.querySelector('#tblProd tbody');
-  pb.innerHTML = A.prods.length ? A.prods.map(p=>{
-    // KH tương tác theo SP = mess tạo trong kỳ có gắn thẻ mã SP (từ A.spInt — cần map thẻ tag Pancake)
-    const khtt = (A.spInt && p.code && A.spInt[p.code]!=null) ? A.spInt[p.code] : null;
-    const cr = (khtt!==null && khtt>0) ? pct(p.closed,khtt) : null;
-    const rr=pct(p.returned,p.closed+p.returned);
-    return `<tr><td class="pg">${p.name}</td>
-      <td class="num">${khtt===null?'—':fmtN(khtt)}</td>
-      <td class="num">${fmtN(p.orders)}</td><td class="num">${fmtN(p.closed)}</td>
-      <td><span class="pill ${cr===null?'':cr>=30?'g':cr>=15?'a':'r'}">${cr===null?'—':cr.toFixed(1)+'%'}</span></td>
-      <td class="num">${fmtN(p.qty)}</td><td class="num">${fmtN(p.returned)}</td>
-      <td><span class="pill ${rr>15?'r':'g'}">${(p.closed+p.returned)?rr.toFixed(1)+'%':'—'}</span></td>
-      <td class="num">${vnd(p.revenue)}</td></tr>`;}).join('')
-    : `<tr><td colspan="9" class="empty">Không có dữ liệu sản phẩm trong kỳ</td></tr>`;
+  // bảng BIẾN ĐỘNG THEO NGÀY (mới nhất trên đầu)
+  const db=document.querySelector('#tblDaily tbody');
+  const days=[...A.daily].sort((a,b)=>a.date<b.date?1:-1);
+  db.innerHTML = days.length ? days.map(d=>{
+    const cr=pct(d.closed||0, d.interactions||0);
+    const dm=d.date.split('-');
+    return `<tr><td class="pg">${dm[2]}/${dm[1]}</td>
+      <td class="num">${fmtN(d.interactions)}</td><td class="num">${fmtN(d.orders)}</td><td class="num">${fmtN(d.closed||0)}</td>
+      <td><span class="pill ${d.interactions?(cr>=15?'g':cr>=8?'a':'r'):'n'}">${d.interactions?cr.toFixed(1)+'%':'—'}</span></td>
+      <td class="num">${vnd(d.revenue)}</td></tr>`;}).join('')
+    : `<tr><td colspan="6" class="empty">Không có dữ liệu</td></tr>`;
 
   renderMeta(A);
   drawCharts(A,pages,single);
@@ -594,22 +576,6 @@ function drawSP(){
 
 function drawCharts(A,pages,single){
   Object.values(charts).forEach(c=>c&&c.destroy());
-  const shortName=n=>n.replace(/^Changgo\s*(Book|book)\s*-?\s*/i,'').slice(0,20)||n.slice(0,20);
-  // phễu page
-  charts.page=new Chart(document.getElementById('chPage'),{type:'bar',
-    data:{labels:pages.map(p=>shortName(p.name)),datasets:[
-      {label:'KH tương tác',data:pages.map(p=>p.interactions),backgroundColor:C.sky,borderRadius:5},
-      {label:'Số đơn',data:pages.map(p=>p.orders),backgroundColor:C.blue,borderRadius:5},
-      {label:'Đơn chốt',data:pages.map(p=>p.closed),backgroundColor:C.green,borderRadius:5}]},
-    options:{plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
-      scales:{x:{grid:{display:false},ticks:{font:{size:11}}},y:{grid:{color:'#eef4fb'},ticks:{font:{size:11}}}}}});
-  // status donut
-  const stColors={delivered:C.green,canceled:C.red,returned:'#d98b8b',returning:'#e0a3a3',waitting:C.amber,
-    shipped:C.blue,submitted:'#7fb0e6',printed:'#a9c6ec',pending:'#c9d8ea',new:'#dbe6f3',wait_submit:'#e7eef6'};
-  charts.status=new Chart(document.getElementById('chStatus'),{type:'doughnut',
-    data:{labels:A.status.map(s=>s.label),datasets:[{data:A.status.map(s=>s.count),
-      backgroundColor:A.status.map(s=>stColors[s.code]||C.muted),borderWidth:2,borderColor:'#fff'}]},
-    options:{cutout:'58%',plugins:{legend:{position:'right',labels:{boxWidth:11,font:{size:11.5}}}}}});
   // daily
   const dp=document.getElementById('dailyPanel');
   if(single){ dp.style.display='none'; }
