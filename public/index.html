@@ -121,7 +121,8 @@
     <a class="tablink" href="https://bao-cao-sp.pages.dev/" target="_blank">📚 SL bán theo SP ↗</a>
   </div>
   <div class="sgroup"><button id="btnUpdate" style="width:100%;background:var(--blue);color:#fff;border:none;border-radius:10px;padding:11px;font-size:14px;font-weight:800;cursor:pointer;box-shadow:0 3px 10px rgba(47,127,224,.3)">🔄 Cập nhật số liệu</button>
-    <div id="updNote" style="font-size:11px;color:var(--muted);margin-top:6px;text-align:center">Bấm để lấy số liệu mới nhất</div></div>
+    <div id="lastUpd" style="font-size:12px;color:var(--blue-d);margin-top:8px;text-align:center;font-weight:800">🕐 —</div>
+    <div id="updNote" style="font-size:11px;color:var(--muted);margin-top:3px;text-align:center">Bấm để lấy số liệu mới nhất</div></div>
   <div class="sgroup"><div class="slabel">⚙️ Cài đặt</div>
     <div class="sitem" id="openSettings">🏷️ Cấu hình thẻ SP</div>
   </div>
@@ -402,6 +403,7 @@ function render(from,to){
   const A=aggregate(from,to);
   A.spInt=computeSpInt(from,to);
   const _cnt=document.getElementById('cntTH'); if(_cnt) _cnt.textContent=fmtN(A.tot.closed);
+  const _lu=document.getElementById('lastUpd'); if(_lu){ const _g=(D.generated_at||'').split(' '); const _dp=(_g[0]||'').split('-'); _lu.textContent = _dp.length===3 ? `🕐 ${_dp[2]}/${_dp[1]} · ${_g[1]||''}` : '🕐 '+D.generated_at; }
   const single = (fmt(from)===fmt(to));
   document.getElementById('period').textContent =
     (single? viDate(from) : `${viDate(from)} → ${viDate(to)}`) + ` · cập nhật ${D.generated_at}`;
