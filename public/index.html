@@ -411,11 +411,13 @@ function render(from,to){
   const closeRate = A.incomplete ? null : pct(A.tot.closed, A.tot.interactions);
   // ==== Tỉ lệ hoàn tính từ đơn FB THÁNG TRƯỚC (đơn kỳ này còn mới, chưa kịp hoàn) ====
   const _td = parseD(D.today);
-  const _lmS = fmt(new Date(_td.getFullYear(), _td.getMonth()-1, 1));
-  const _lmE = fmt(new Date(_td.getFullYear(), _td.getMonth(), 0));
+  const _endD = new Date(_td.getTime() - 10*86400000);      // lùi 10 ngày từ hôm nay
+  const _startD = new Date(_endD.getTime() - 30*86400000);  // 30 ngày trước mốc đó
+  const _lmS = fmt(_startD), _lmE = fmt(_endD);
   let _del=0, _ret=0;
   for(const o of m.orders){ if(o.d>=_lmS && o.d<=_lmE){ if(o.st==='delivered')_del++; else if(o.st==='returned'||o.st==='returning')_ret++; } }
-  const _lmN=_del+_ret, retRate=pct(_ret,_lmN), _lmMonth=(new Date(_td.getFullYear(),_td.getMonth()-1,1)).getMonth()+1;
+  const _lmN=_del+_ret, retRate=pct(_ret,_lmN);
+  const _dmm = s => { const p=s.split('-'); return (+p[2])+'/'+(+p[1]); };
   const aov = A.tot.closed>0 ? A.tot.revenue/A.tot.closed : 0;         // TB đơn (doanh số ÷ đơn chốt)
   const doanhThuNet = A.tot.revenue * (1 - (retRate||0)/100);           // doanh thu = doanh số × (1 − hoàn)
   // Ads/DT = tổng chi phí ads (IB, từ Meta) ÷ doanh số. Chỉ có theo kỳ preset.
@@ -442,7 +444,7 @@ function render(from,to){
     {lbl:'Doanh thu',val:vnd(doanhThuNet),sub:`sau hoàn ${_lmN?retRate.toFixed(1)+'%':'—'}`,money:true},
     {lbl:'Ads / DT',val:adsDT===null?'—':adsDT.toFixed(1)+'%',sub:adsSpend===null?'chọn kỳ để xem':`chi ads ${fmtN(adsSpend)}đ ÷ doanh số`,
       color:adsDT===null?C.muted:(adsDT<45?C.green:adsDT<=55?C.amber:C.red)},
-    {lbl:'Tỉ lệ hoàn',val:_lmN?retRate.toFixed(1)+'%':'—',sub:`đơn FB tháng ${_lmMonth} · ${fmtN(_ret)}/${fmtN(_lmN)}`,
+    {lbl:'Tỉ lệ hoàn',val:_lmN?retRate.toFixed(1)+'%':'—',sub:`đơn FB ${_dmm(_lmS)}–${_dmm(_lmE)} · ${fmtN(_ret)}/${fmtN(_lmN)}`,
       color:retRate>15?C.red:C.green},
     {lbl:'Đã giao TC',val:fmtN(A.tot.delivered),sub:`${fmtN(A.tot.canceled)} đơn hủy`},
   ];
