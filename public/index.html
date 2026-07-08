@@ -418,6 +418,11 @@ function render(from,to){
   const _lmN=_del+_ret, retRate=pct(_ret,_lmN), _lmMonth=(new Date(_td.getFullYear(),_td.getMonth()-1,1)).getMonth()+1;
   const aov = A.tot.closed>0 ? A.tot.revenue/A.tot.closed : 0;         // TB đơn (doanh số ÷ đơn chốt)
   const doanhThuNet = A.tot.revenue * (1 - (retRate||0)/100);           // doanh thu = doanh số × (1 − hoàn)
+  // Ads/DT = tổng chi phí ads (IB, từ Meta) ÷ doanh số. Chỉ có theo kỳ preset.
+  let adsSpend=null;
+  if(curPreset && META && META.sp){ adsSpend=0; for(const c in META.sp){ adsSpend += ((META.sp[c].t||{})[curPreset]||{}).spend||0; } }
+  const dtVND = A.tot.revenue*RATE_VND;
+  const adsDT = (adsSpend!==null && dtVND>0) ? adsSpend/dtVND*100 : null;
 
   // cảnh báo thiếu KH tương tác
   const warn=document.getElementById('warn');
@@ -435,6 +440,8 @@ function render(from,to){
     {lbl:'Trung bình đơn',val:vnd(aov),sub:`VND / đơn chốt`,money:true},
     {lbl:'Doanh số',val:vnd(A.tot.revenue),sub:`đơn chốt (gộp) · ×${RATE_VND}`,money:true},
     {lbl:'Doanh thu',val:vnd(doanhThuNet),sub:`sau hoàn ${_lmN?retRate.toFixed(1)+'%':'—'}`,money:true},
+    {lbl:'Ads / DT',val:adsDT===null?'—':adsDT.toFixed(1)+'%',sub:adsSpend===null?'chọn kỳ để xem':`chi ads ${fmtN(adsSpend)}đ ÷ doanh số`,
+      color:adsDT===null?C.muted:(adsDT<45?C.green:adsDT<=55?C.amber:C.red)},
     {lbl:'Tỉ lệ hoàn',val:_lmN?retRate.toFixed(1)+'%':'—',sub:`đơn FB tháng ${_lmMonth} · ${fmtN(_ret)}/${fmtN(_lmN)}`,
       color:retRate>15?C.red:C.green},
     {lbl:'Đã giao TC',val:fmtN(A.tot.delivered),sub:`${fmtN(A.tot.canceled)} đơn hủy`},
