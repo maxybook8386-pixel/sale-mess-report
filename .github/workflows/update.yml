@@ -4,6 +4,10 @@ on:
   workflow_dispatch: {}
   # Lịch tự chạy do Cloudflare Cron kích (reliable hơn cron GitHub) — xem sale-mess-worker
 
+concurrency:
+  group: update
+  cancel-in-progress: true
+
 jobs:
   update:
     runs-on: ubuntu-latest
