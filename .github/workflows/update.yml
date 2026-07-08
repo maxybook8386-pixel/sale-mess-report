@@ -2,8 +2,7 @@ name: Cap nhat so lieu Sale
 
 on:
   workflow_dispatch: {}
-  schedule:
-    - cron: '*/15 * * * *'   # tự chạy mỗi ~15 phút (GitHub có thể trễ 10-30 phút lúc tải cao)
+  # Lịch tự chạy do Cloudflare Cron kích (reliable hơn cron GitHub) — xem sale-mess-worker
 
 jobs:
   update:
