@@ -377,7 +377,7 @@ function aggregate(from,to){
     }
   }
   for(const x of ints){
-    if(pages[x.pid]) pages[x.pid].interactions+=x.n;
+    ensurePage(x.pid).interactions+=x.n;   // tạo page nếu chưa có (TT có KH tương tác nhưng chưa có đơn, vd Indo)
     const dd=dayMap[x.d]||(dayMap[x.d]={date:x.d,orders:0,closed:0,revenue:0,interactions:0});
     dd.interactions+=x.n;
   }
