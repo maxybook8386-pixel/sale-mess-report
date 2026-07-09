@@ -177,7 +177,7 @@
       <table id="tblPage">
         <thead><tr>
           <th>Page</th><th>KH mới<br>tương tác</th><th>Số đơn</th><th>Đơn chốt</th>
-          <th>Tỉ lệ chốt</th><th>Đã giao</th><th>Hoàn</th><th>Tỉ lệ hoàn</th><th>Doanh thu</th>
+          <th>Tỉ lệ chốt</th><th>Đã giao</th><th>Hoàn</th><th>Tỉ lệ hoàn</th><th>Chi phí ads</th><th>Ads/DT</th><th>Doanh thu</th>
         </tr></thead>
         <tbody></tbody><tfoot></tfoot>
       </table>
@@ -329,7 +329,7 @@ function aggregate(from,to){
   const f=fmt(from), t=fmt(to);
   const ords = m.orders.filter(o=>o.d>=f && o.d<=t);
   const ints = m.interactions.filter(x=>x.d>=f && x.d<=t);
-  const pages={}, sales={}, statusCount={}, dayMap={}, prods={}, byCode={};
+  const pages={}, sales={}, statusCount={}, dayMap={}, prods={}, byCode={}, codePage={};
 
   const ensurePage = pid => pages[pid] || (pages[pid]={id:pid,name:(m.pages_meta[pid]||pid),
     orders:0,closed:0,delivered:0,returned:0,canceled:0,revenue:0,interactions:0});
@@ -362,6 +362,8 @@ function aggregate(from,to){
     if(o.mcode){
       const bc=byCode[o.mcode]||(byCode[o.mcode]={orders:0,closed:0,revenue:0});
       bc.orders++; if(cl){bc.closed++; bc.revenue+=o.rev;}
+      const cp=codePage[o.mcode]||(codePage[o.mcode]={});
+      cp[o.pid]=(cp[o.pid]||0)+1;   // đếm đơn của SP này trên từng page (để chia ads)
     }
   }
   for(const x of ints){
@@ -380,7 +382,7 @@ function aggregate(from,to){
     pages:Object.values(pages).filter(p=>p.orders>0||p.interactions>0),
     sales:Object.values(sales).sort((a,b)=>b.orders-a.orders),
     prods:Object.values(prods).sort((a,b)=>b.orders-a.orders),
-    byCode,
+    byCode, codePage,
     status:Object.entries(statusCount).map(([code,count])=>({code,label:(m.status_labels[code]||code),count})).sort((a,b)=>b.count-a.count),
     daily:Object.values(dayMap).sort((a,b)=>a.date<b.date?-1:1),
     tot:T_, incomplete};
@@ -454,11 +456,27 @@ function render(from,to){
       <div class="k-val" style="${k.color?`color:${k.color};`:''}${k.money?'font-size:18px;':''}">${k.val}</div>
       <div class="k-sub">${k.sub}</div></div>`).join('');
 
+  // Ads theo page (ước lượng): phân bổ chi phí ads mỗi SP về page theo tỉ lệ đơn của SP đó
+  const pageAds={}; const hasAds = !!(curPreset && META && META.sp);
+  if(hasAds){
+    for(const code in META.sp){
+      const spend=((META.sp[code].t||{})[curPreset]||{}).spend||0;
+      const bc=A.byCode[code]; if(!spend||!bc||!bc.orders) continue;
+      const cp=A.codePage[code]||{};
+      for(const pid in cp){ pageAds[pid]=(pageAds[pid]||0)+spend*cp[pid]/bc.orders; }
+    }
+  }
+  const adsCell=(ads,rev)=>{
+    if(ads===null) return `<td class="num">—</td><td><span class="pill n">—</span></td>`;
+    const r=rev>0?ads/(rev*RATE_VND)*100:null;
+    return `<td class="num">${fmtN(Math.round(ads))}đ</td>`+
+      `<td>${r===null?'<span class="pill n">—</span>':`<span class="pill ${r<45?'g':r<=55?'a':'r'}">${r.toFixed(1)}%</span>`}</td>`;
+  };
   // bảng page
   const pages=A.pages.slice().sort((a,b)=>b.interactions-a.interactions||b.orders-a.orders);
   const maxRev=Math.max(...pages.map(p=>p.revenue),1);
   const tb=document.querySelector('#tblPage tbody');
-  if(!pages.length){ tb.innerHTML=`<tr><td colspan="9" class="empty">Không có đơn Facebook trong kỳ này</td></tr>`; document.querySelector('#tblPage tfoot').innerHTML=''; }
+  if(!pages.length){ tb.innerHTML=`<tr><td colspan="11" class="empty">Không có đơn Facebook trong kỳ này</td></tr>`; document.querySelector('#tblPage tfoot').innerHTML=''; }
   else{
     tb.innerHTML=pages.map(p=>{
       const cr=pct(p.closed,p.interactions), rr=pct(p.returned,p.delivered+p.returned);
@@ -472,13 +490,16 @@ function render(from,to){
         <td class="num">${fmtN(p.delivered)}</td>
         <td class="num">${fmtN(p.returned)}</td>
         <td>${(p.delivered+p.returned)?`<span class="pill ${rr>15?'r':'g'}">${rr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
+        ${adsCell(hasAds?(pageAds[p.id]||0):null, p.revenue)}
         <td class="num">${vnd(p.revenue)}<div class="bar" style="width:${Math.max(6,100*p.revenue/maxRev)}%"></div></td>
       </tr>`;}).join('');
+    const totAds=hasAds?Object.values(pageAds).reduce((a,b)=>a+b,0):null;
     document.querySelector('#tblPage tfoot').innerHTML=`<tr style="font-weight:800;background:var(--sky)">
       <td>TỔNG</td><td class="num">${A.incomplete?'~':''}${fmtN(A.tot.interactions)}</td><td class="num">${fmtN(A.tot.orders)}</td>
       <td class="num">${fmtN(A.tot.closed)}</td><td>${closeRate===null?'<span class="pill n">—</span>':`<span class="pill ${closeRate>=15?'g':closeRate>=8?'a':'r'}">${closeRate.toFixed(1)}%</span>`}</td>
       <td class="num">${fmtN(A.tot.delivered)}</td><td class="num">${fmtN(A.tot.returned)}</td>
       <td>${(A.tot.delivered+A.tot.returned)?`<span class="pill ${retRate>15?'r':'g'}">${retRate.toFixed(1)}%</span>`:'—'}</td>
+      ${adsCell(totAds, A.tot.revenue)}
       <td class="num">${vnd(A.tot.revenue)}</td></tr>`;
   }
 
