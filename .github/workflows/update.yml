@@ -27,6 +27,7 @@ jobs:
           PANCAKE_TOKEN: ${{ secrets.PANCAKE_TOKEN }}
           META_TOKEN: ${{ secrets.META_TOKEN }}
           POS_APIKEY: ${{ secrets.POS_APIKEY }}
+          POS_APIKEY_ID: ${{ secrets.POS_APIKEY_ID }}
         run: |
           ./scripts/refresh.ps1
           ./scripts/pull_tags.ps1

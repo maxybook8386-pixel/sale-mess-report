@@ -22,7 +22,8 @@ $base = 'https://pos.pages.fm/api/v1'
 $TOKEN = $env:PANCAKE_TOKEN
 
 $markets = @(
-  @{ key='th'; name='Thái Lan'; flag='🇹🇭'; currency='THB'; symbol='฿'; shop='100226157'; apikey=$env:POS_APIKEY }
+  @{ key='th'; name='Thái Lan'; flag='🇹🇭'; currency='THB'; symbol='฿'; shop='100226157'; apikey=$env:POS_APIKEY; rate=771; pages=@{} },
+  @{ key='id'; name='Indo'; flag='🇮🇩'; currency='IDR'; symbol='Rp'; shop='1021279389'; apikey=$env:POS_APIKEY_ID; rate=1.6; pages=@{ '1133350909867210'='Komobook - Rumah Ilmu Anak' } }
 )
 
 # status_name (Pancake) -> nhãn tiếng Việt
@@ -95,6 +96,9 @@ foreach ($m in $markets) {
   }
   Write-Host ("  Đơn Facebook: {0}" -f $orders.Count) -ForegroundColor Green
 
+  # thêm page cấu hình sẵn (thị trường chưa có đơn inbox, vd Indo) để vẫn lấy KH tương tác
+  foreach ($k in @($m.pages.Keys)) { if ($k -and -not $pagesMeta.ContainsKey("$k")) { $pagesMeta["$k"] = $m.pages[$k] } }
+
   # --- KH mới tương tác theo ngày + page (pages.fm) ---
   $interactions = New-Object System.Collections.ArrayList
   $intFrom = $null
@@ -126,6 +130,7 @@ foreach ($m in $markets) {
 
   $out.markets += [ordered]@{
     key=$m.key; name=$m.name; flag=$m.flag; currency=$m.currency; symbol=$m.symbol; source='Facebook'
+    rate_vnd         = $m.rate
     pages_meta       = $pagesMeta
     status_labels    = $statusLabels
     interaction_from = if ($intFrom) { $intFrom.ToString('yyyy-MM-dd') } else { $null }

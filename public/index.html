@@ -110,9 +110,9 @@
 <aside class="side">
   <div class="brand"><div class="blogo">📊</div><div><div class="bname">AVB SALE</div><div class="bsub">DASHBOARD 2026</div></div></div>
   <div class="sgroup"><div class="slabel">🌐 Thị trường</div>
-    <div class="sitem on"><span class="sflag">TH</span> Thái <span class="scount" id="cntTH">—</span></div>
+    <div class="sitem on" data-mkt="0"><span class="sflag">TH</span> Thái <span class="scount" id="cntTH">—</span></div>
+    <div class="sitem" data-mkt="1"><span class="sflag">ID</span> Indo <span class="scount" id="cntID">—</span></div>
     <div class="sitem dis"><span class="sflag">MY</span> Malay <span class="scount">—</span></div>
-    <div class="sitem dis"><span class="sflag">ID</span> Indo <span class="scount">sắp có</span></div>
     <div class="sitem dis"><span class="sflag">PH</span> Phil <span class="scount">—</span></div>
   </div>
   <div class="sgroup"><div class="slabel">🔻 Lát cắt</div>
@@ -298,9 +298,10 @@ try{ TAGMAP = JSON.parse(localStorage.getItem('tagmap')||'{}'); }catch(e){}
 let curPreset = 'today';               // kỳ preset đang chọn (để map với Meta)
 const PRIO = ['A029','A043','A042'];    // mã SP ưu tiên hiển thị đầu
 const fmtN = n => Math.round(n||0).toLocaleString('vi-VN');
-const RATE_VND = 771;                       // 1 THB = 771 VND (đổi tỉ giá ở đây)
-const vnd = v => fmtN(v*RATE_VND)+'₫';      // doanh thu đầy đủ (VND)
-const vndShort = v => { const x=v*RATE_VND;
+const RATE_VND = 771;                       // tỉ giá mặc định (Thái: 1 THB=771đ). Mỗi TT có rate riêng
+let RV = RATE_VND;                          // tỉ giá thị trường đang xem (đổi khi chuyển TT)
+const vnd = v => fmtN(v*RV)+'₫';            // doanh thu đầy đủ (VND) theo tỉ giá TT hiện tại
+const vndShort = v => { const x=v*RV;
   const s = x>=1e9?(x/1e9).toFixed(2)+' tỷ':x>=1e6?(x/1e6).toFixed(1)+' tr':x>=1e3?Math.round(x/1e3)+'k':String(Math.round(x));
   return s+'₫'; };
 const pct = (a,b) => b>0 ? (100*a/b) : 0;
@@ -316,7 +317,16 @@ const parseD = s => { const p=s.split('-'); return new Date(+p[0],+p[1]-1,+p[2])
 const addDays = (dt,n) => { const d=new Date(dt); d.setDate(d.getDate()+n); return d; };
 const viDate = dt => pad(dt.getDate())+'/'+pad(dt.getMonth()+1)+'/'+dt.getFullYear();
 
-let m, sym, T, charts={};
+let m, sym, T, charts={}, curMkt=0;
+// đếm đơn chốt HÔM NAY cho từng thị trường (badge sidebar)
+function updateMktCounts(){
+  if(!D||!D.markets) return; const td=D.today;
+  D.markets.forEach((mk,i)=>{
+    const el=document.getElementById(i===0?'cntTH':i===1?'cntID':'');
+    if(!el) return; let c=0; for(const o of mk.orders){ if(o.d===td && isClosed(o.st)) c++; }
+    el.textContent=fmtN(c);
+  });
+}
 
 function periodRange(key){
   if(key==='today')      return [T, T];
@@ -404,7 +414,6 @@ function render(from,to){
   curFrom=from; curTo=to;
   const A=aggregate(from,to);
   A.spInt=computeSpInt(from,to);
-  const _cnt=document.getElementById('cntTH'); if(_cnt) _cnt.textContent=fmtN(A.tot.closed);
   const _lu=document.getElementById('lastUpd'); if(_lu){ const _g=(D.generated_at||'').split(' '); const _dp=(_g[0]||'').split('-'); _lu.textContent = _dp.length===3 ? `🕐 ${_dp[2]}/${_dp[1]} · ${_g[1]||''}` : '🕐 '+D.generated_at; }
   const single = (fmt(from)===fmt(to));
   document.getElementById('period').textContent =
@@ -425,7 +434,7 @@ function render(from,to){
   // Ads/DT = tổng chi phí ads (IB, từ Meta) ÷ doanh số. Chỉ có theo kỳ preset.
   let adsSpend=null;
   if(curPreset && META && META.sp){ adsSpend=0; for(const c in META.sp){ adsSpend += ((META.sp[c].t||{})[curPreset]||{}).spend||0; } }
-  const dtVND = A.tot.revenue*RATE_VND;
+  const dtVND = A.tot.revenue*RV;
   const adsDT = (adsSpend!==null && dtVND>0) ? adsSpend/dtVND*100 : null;
 
   // cảnh báo thiếu KH tương tác
@@ -442,7 +451,7 @@ function render(from,to){
     {lbl:'Tỉ lệ chốt',val:closeRate===null?'—':closeRate.toFixed(1)+'%',sub:'đơn chốt ÷ KH tương tác',
       color:closeRate===null?C.muted:(closeRate>=15?C.green:closeRate>=8?C.amber:C.red)},
     {lbl:'Trung bình đơn',val:vnd(aov),sub:`VND / đơn chốt`,money:true},
-    {lbl:'Doanh số',val:vnd(A.tot.revenue),sub:`đơn chốt (gộp) · ×${RATE_VND}`,money:true},
+    {lbl:'Doanh số',val:vnd(A.tot.revenue),sub:`đơn chốt (gộp) · ×${RV}`,money:true},
     {lbl:'Doanh thu',val:vnd(doanhThuNet),sub:`sau hoàn ${_lmN?retRate.toFixed(1)+'%':'—'}`,money:true},
     {lbl:'Ads / DT',val:adsDT===null?'—':adsDT.toFixed(1)+'%',sub:adsSpend===null?'chọn kỳ để xem':`chi ads ${fmtN(adsSpend)}đ ÷ doanh số`,
       color:adsDT===null?C.muted:(adsDT<45?C.green:adsDT<=55?C.amber:C.red)},
@@ -468,7 +477,7 @@ function render(from,to){
   }
   const adsCell=(ads,rev)=>{
     if(ads===null) return `<td class="num">—</td><td><span class="pill n">—</span></td>`;
-    const r=rev>0?ads/(rev*RATE_VND)*100:null;
+    const r=rev>0?ads/(rev*RV)*100:null;
     return `<td class="num">${fmtN(Math.round(ads))}đ</td>`+
       `<td>${r===null?'<span class="pill n">—</span>':`<span class="pill ${r<45?'g':r<=55?'a':'r'}">${r.toFixed(1)}%</span>`}</td>`;
   };
@@ -618,7 +627,7 @@ function drawCharts(A,pages,single){
       data:{labels:lbl,datasets:[
         {type:'line',label:'KH tương tác',data:dl.map(d=>d.interactions),borderColor:C.blueD,backgroundColor:'rgba(47,127,224,.08)',fill:true,tension:.35,yAxisID:'y',pointRadius:2,borderWidth:2},
         {type:'line',label:'Số đơn',data:dl.map(d=>d.orders),borderColor:C.green,tension:.35,yAxisID:'y',pointRadius:2,borderWidth:2},
-        {type:'bar',label:'Doanh thu (VND)',data:dl.map(d=>Math.round(d.revenue*RATE_VND)),backgroundColor:'rgba(232,161,58,.35)',yAxisID:'y1',borderRadius:4}]},
+        {type:'bar',label:'Doanh thu (VND)',data:dl.map(d=>Math.round(d.revenue*RV)),backgroundColor:'rgba(232,161,58,.35)',yAxisID:'y1',borderRadius:4}]},
       options:{interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
         scales:{x:{grid:{display:false},ticks:{font:{size:11}}},
           y:{position:'left',grid:{color:'#eef4fb'},ticks:{font:{size:11}}},
@@ -630,8 +639,17 @@ function drawCharts(A,pages,single){
 if(!D||!D.markets||!D.markets.length){
   document.getElementById('period').textContent='Chưa có dữ liệu — chạy refresh.ps1 để tạo data.js';
 }else{
-  m=D.markets[0]; sym=m.symbol||'฿'; T=parseD(D.today);
+  m=D.markets[curMkt]||D.markets[0]; RV=m.rate_vnd||RATE_VND; sym=m.symbol||'฿'; T=parseD(D.today);
   document.getElementById('mkt').textContent=`${m.flag||'🇹🇭'} ${m.name}`;
+  updateMktCounts();
+  // chuyển thị trường (Thái ↔ Indo)
+  document.querySelectorAll('.sitem[data-mkt]').forEach(el=>el.addEventListener('click',()=>{
+    const idx=+el.dataset.mkt; if(!D.markets[idx]) return;
+    curMkt=idx; m=D.markets[idx]; RV=m.rate_vnd||RATE_VND; sym=m.symbol||'฿';
+    document.querySelectorAll('.sitem[data-mkt]').forEach(x=>x.classList.remove('on')); el.classList.add('on');
+    document.getElementById('mkt').textContent=`${m.flag||''} ${m.name}`;
+    rerender();
+  }));
 
   // ô chọn ngày tùy ý
   const dFrom=document.getElementById('dFrom'), dTo=document.getElementById('dTo');
@@ -739,7 +757,7 @@ async function refreshData(){
     if(!window.REPORT_DATA || !window.REPORT_DATA.markets) return;
     try{ const mt = await (await fetch('meta.js?cb='+Date.now(), {cache:'no-store'})).text(); (0,eval)(mt); META=window.META_DATA; }catch(e){}
     try{ const tg = await (await fetch('tags.js?cb='+Date.now(), {cache:'no-store'})).text(); (0,eval)(tg); TAGINT=window.TAGINT_DATA; renderTagMapUI(); }catch(e){}
-    D = window.REPORT_DATA; m = D.markets[0]; T = parseD(D.today);
+    D = window.REPORT_DATA; m = D.markets[curMkt]||D.markets[0]; RV=m.rate_vnd||RATE_VND; T = parseD(D.today); updateMktCounts();
     const act = document.querySelector('.fbtn[data-k].on');
     if(act){ const [f,t]=periodRange(act.dataset.k); render(f,t); }   // vẽ lại kỳ đang chọn
   }catch(e){ /* bỏ qua, thử lại lần sau */ }
