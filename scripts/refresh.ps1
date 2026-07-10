@@ -21,9 +21,10 @@ $ErrorActionPreference = 'Stop'
 $base = 'https://pos.pages.fm/api/v1'
 $TOKEN = $env:PANCAKE_TOKEN
 
+# div = đơn vị Pancake lưu giá: THB=satang (÷100), IDR=lưu thẳng (÷1)
 $markets = @(
-  @{ key='th'; name='Thái Lan'; flag='🇹🇭'; currency='THB'; symbol='฿'; shop='100226157'; apikey=$env:POS_APIKEY; rate=771; pages=@{} },
-  @{ key='id'; name='Indo'; flag='🇮🇩'; currency='IDR'; symbol='Rp'; shop='1021279389'; apikey=$env:POS_APIKEY_ID; rate=1.6; pages=@{ '1133350909867210'='Komobook - Rumah Ilmu Anak' } }
+  @{ key='th'; name='Thái Lan'; flag='🇹🇭'; currency='THB'; symbol='฿'; shop='100226157'; apikey=$env:POS_APIKEY; rate=771; div=100; pages=@{} },
+  @{ key='id'; name='Indo'; flag='🇮🇩'; currency='IDR'; symbol='Rp'; shop='1021279389'; apikey=$env:POS_APIKEY_ID; rate=1.6; div=1; pages=@{ '1133350909867210'='Komobook - Rumah Ilmu Anak' } }
 )
 
 # status_name (Pancake) -> nhãn tiếng Việt
@@ -69,8 +70,8 @@ foreach ($m in $markets) {
     $pgid  = if ($o.page -and $o.page.id) { "" + $o.page.id } elseif ($o.page_id) { "" + $o.page_id } else { '?' }
     $pname = if ($o.page -and $o.page.name) { $o.page.name } elseif ($o.account_name) { $o.account_name } else { '(Không rõ page)' }
     if (-not $pagesMeta.ContainsKey($pgid)) { $pagesMeta[$pgid] = $pname }
-    $rev = [double]$o.total_price / 100.0
-    if ($rev -le 0) { $rev = [double]$o.cod / 100.0 }
+    $rev = [double]$o.total_price / $m.div
+    if ($rev -le 0) { $rev = [double]$o.cod / $m.div }
     $sale = if ($o.marketer -and $o.marketer.name) { $o.marketer.name } else { '(Chưa gán sale)' }
     $statusSeen[$sn] = $true
     # SP CHÍNH = cuốn được add ĐẦU TIÊN vào đơn (bỏ quà tặng); các cuốn sau là bán kèm, không tính
