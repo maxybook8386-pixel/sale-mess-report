@@ -301,6 +301,12 @@ const fmtN = n => Math.round(n||0).toLocaleString('vi-VN');
 const RATE_VND = 771;                       // tỉ giá mặc định (Thái: 1 THB=771đ). Mỗi TT có rate riêng
 let RV = RATE_VND;                          // tỉ giá thị trường đang xem (đổi khi chuyển TT)
 const vnd = v => fmtN(v*RV)+'₫';            // doanh thu đầy đủ (VND) theo tỉ giá TT hiện tại
+// Meta chi phí đã TÁCH theo thị trường (byMkt) — camp "Indo"->id, còn lại->th. Lấy đúng TT đang xem.
+function mktSp(){
+  if(META && META.byMkt){ const b=META.byMkt[m&&m.key]; return (b&&b.sp)||{}; }
+  return (m&&m.key==='th' && META && META.sp) ? META.sp : {};   // fallback format cũ (chưa pull lại)
+}
+function hasMeta(){ return !!(META && (META.byMkt || META.sp)); }
 const vndShort = v => { const x=v*RV;
   const s = x>=1e9?(x/1e9).toFixed(2)+' tỷ':x>=1e6?(x/1e6).toFixed(1)+' tr':x>=1e3?Math.round(x/1e3)+'k':String(Math.round(x));
   return s+'₫'; };
@@ -433,7 +439,7 @@ function render(from,to){
   const doanhThuNet = A.tot.revenue * (1 - (retRate||0)/100);           // doanh thu = doanh số × (1 − hoàn)
   // Ads/DT = tổng chi phí ads (IB, từ Meta) ÷ doanh số. Chỉ có theo kỳ preset.
   let adsSpend=null;
-  if(curPreset && META && META.sp){ adsSpend=0; for(const c in META.sp){ adsSpend += ((META.sp[c].t||{})[curPreset]||{}).spend||0; } }
+  if(curPreset && hasMeta()){ const _sp=mktSp(); adsSpend=0; for(const c in _sp){ adsSpend += ((_sp[c].t||{})[curPreset]||{}).spend||0; } }
   const dtVND = A.tot.revenue*RV;
   const adsDT = (adsSpend!==null && dtVND>0) ? adsSpend/dtVND*100 : null;
 
@@ -466,10 +472,11 @@ function render(from,to){
       <div class="k-sub">${k.sub}</div></div>`).join('');
 
   // Ads theo page (ước lượng): phân bổ chi phí ads mỗi SP về page theo tỉ lệ đơn của SP đó
-  const pageAds={}; const hasAds = !!(curPreset && META && META.sp);
+  const pageAds={}; const hasAds = !!(curPreset && hasMeta());
   if(hasAds){
-    for(const code in META.sp){
-      const spend=((META.sp[code].t||{})[curPreset]||{}).spend||0;
+    const _sp=mktSp();
+    for(const code in _sp){
+      const spend=((_sp[code].t||{})[curPreset]||{}).spend||0;
       const bc=A.byCode[code]; if(!spend||!bc||!bc.orders) continue;
       const cp=A.codePage[code]||{};
       for(const pid in cp){ pageAds[pid]=(pageAds[pid]||0)+spend*cp[pid]/bc.orders; }
@@ -546,14 +553,15 @@ function render(from,to){
 function renderMeta(A){
   const tag=document.getElementById('metaTag'), note=document.getElementById('metaNote'), tb=document.querySelector('#tblMeta tbody');
   const lbl={today:'Hôm nay',yesterday:'Hôm qua',this_month:'Tháng này',last_month:'Tháng trước'};
-  if(!META||!META.sp){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="8" class="empty">—</td></tr>'; return; }
+  if(!hasMeta()){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="8" class="empty">—</td></tr>'; return; }
   if(!curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Meta chỉ có theo 4 kỳ nút. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem mess theo SP.'; tb.innerHTML='<tr><td colspan="8" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
   tag.textContent='kỳ: '+(lbl[curPreset]||curPreset);
-  note.innerHTML='Mess = hội thoại bắt đầu từ quảng cáo (cả IB + CD). Chi phí chỉ tính camp <b>IB</b> (CD chạy web không tính). Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng với các SP trên = đúng <b>TỔNG</b>.';
-  let rows=Object.keys(META.sp).map(c=>{
-    const t=(META.sp[c].t||{})[curPreset]||{mess:0,spend:0};
+  note.innerHTML='Mess = hội thoại bắt đầu từ quảng cáo (cả IB + CD). Chi phí chỉ tính camp <b>IB</b> (CD chạy web không tính), <b>lọc theo đúng thị trường</b> đang xem. Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng với các SP trên = đúng <b>TỔNG</b>.';
+  const _sp=mktSp();
+  let rows=Object.keys(_sp).map(c=>{
+    const t=(_sp[c].t||{})[curPreset]||{mess:0,spend:0};
     const bc=A.byCode[c]||{orders:0,closed:0};
-    return {code:c,name:META.sp[c].name||'',mess:t.mess||0,spend:t.spend||0,orders:bc.orders,closed:bc.closed};
+    return {code:c,name:_sp[c].name||'',mess:t.mess||0,spend:t.spend||0,orders:bc.orders,closed:bc.closed};
   }).filter(r=>r.mess>0||r.orders>0);
   rows.sort((a,b)=>{ const pa=PRIO.indexOf(a.code),pb=PRIO.indexOf(b.code);
     if(pa>=0||pb>=0) return (pa<0?99:pa)-(pb<0?99:pb); return b.mess-a.mess; });

@@ -16,7 +16,15 @@ $accts=$acc.data | ForEach-Object { $_.account_id }
 Write-Host "Ad accounts: $($accts.Count)" -ForegroundColor Cyan
 
 $reCode=[regex]'([A-Z]\d{3})\s+(IB|CD)\b'
-$sp=@{}    # code -> @{name; t=@{preset->@{mess;spend}}}
+# Mã SP dùng CHUNG giữa các thị trường (vd A029 vừa Thái vừa Indo) -> phải tách theo tên camp.
+# Quy ước tên camp: chứa "Indo"->id, "Malay"->my, "Phil"->ph, còn lại->th (Thái mặc định).
+function Get-Mkt([string]$name){
+  if($name -match '(?i)indo'){ 'id' }
+  elseif($name -match '(?i)malay'){ 'my' }
+  elseif($name -match '(?i)\bphil'){ 'ph' }
+  else { 'th' }
+}
+$mkts=@{}   # mktkey -> @{ code -> @{name; t=@{preset->@{mess;spend}}} }
 
 foreach($preset in $presets){
   $rows=0
@@ -31,9 +39,13 @@ foreach($preset in $presets){
       }
       if(-not $r){ break }
       foreach($row in $r.data){
-        $mch=$reCode.Match("" + $row.campaign_name); if(-not $mch.Success){ continue }
+        $nm="" + $row.campaign_name
+        $mch=$reCode.Match($nm); if(-not $mch.Success){ continue }
         $code=$mch.Groups[1].Value; $typ=$mch.Groups[2].Value
+        $mk=Get-Mkt $nm
         $mess=0; foreach($ac in $row.actions){ if($ac.action_type -eq 'onsite_conversion.messaging_conversation_started_7d'){ $mess=[double]$ac.value; break } }
+        if(-not $mkts.ContainsKey($mk)){ $mkts[$mk]=@{} }
+        $sp=$mkts[$mk]
         if(-not $sp.ContainsKey($code)){ $sp[$code]=@{ name=''; t=@{} } }
         if(-not $sp[$code].t.ContainsKey($preset)){ $sp[$code].t[$preset]=@{ mess=0.0; spend=0.0 } }
         $sp[$code].t[$preset].mess += $mess
@@ -46,18 +58,26 @@ foreach($preset in $presets){
   Write-Host ("  [{0}] gom {1} dòng" -f $preset,$rows) -ForegroundColor Green
 }
 
-# tên cuốn từ data.js
+# tên cuốn từ data.js (gộp mọi thị trường: mcode -> tên)
+$c2n=@{}
 try{
-  $D=((Get-Content (Join-Path $PSScriptRoot 'data.js') -Raw -Encoding UTF8) -replace '^window\.REPORT_DATA = ','' -replace ';\s*$','') | ConvertFrom-Json
-  $c2n=@{}; foreach($o in $D.markets[0].orders){ if($o.mcode -and $o.main -and -not $c2n.ContainsKey($o.mcode)){ $c2n[$o.mcode]=$o.main } }
-  foreach($c in @($sp.Keys)){ if($c2n.ContainsKey($c)){ $sp[$c].name=$c2n[$c] } }
+  $D=((Get-Content (Join-Path $PSScriptRoot '../public/data.js') -Raw -Encoding UTF8) -replace '^window\.REPORT_DATA = ','' -replace ';\s*$','') | ConvertFrom-Json
+  foreach($mk in $D.markets){ foreach($o in $mk.orders){ if($o.mcode -and $o.main -and -not $c2n.ContainsKey($o.mcode)){ $c2n[$o.mcode]=$o.main } } }
 }catch{}
 
-$out=[ordered]@{ generated_at=(Get-Date).ToString('yyyy-MM-dd HH:mm'); presets=$presets; sp=[ordered]@{} }
-foreach($c in ($sp.Keys | Sort-Object)){
-  $t=[ordered]@{}
-  foreach($pr in $presets){ if($sp[$c].t.ContainsKey($pr)){ $t[$pr]=[ordered]@{ mess=[int]$sp[$c].t[$pr].mess; spend=[math]::Round($sp[$c].t[$pr].spend) } } else { $t[$pr]=[ordered]@{ mess=0; spend=0 } } }
-  $out.sp[$c]=[ordered]@{ name=$sp[$c].name; t=$t }
+# Xuất theo thị trường: byMkt.<key>.sp.<code>.t.<preset>{mess,spend}
+$out=[ordered]@{ generated_at=(Get-Date).ToString('yyyy-MM-dd HH:mm'); presets=$presets; byMkt=[ordered]@{} }
+$totCodes=0
+foreach($mk in ($mkts.Keys | Sort-Object)){
+  $spOut=[ordered]@{}
+  foreach($c in ($mkts[$mk].Keys | Sort-Object)){
+    $t=[ordered]@{}
+    foreach($pr in $presets){ if($mkts[$mk][$c].t.ContainsKey($pr)){ $t[$pr]=[ordered]@{ mess=[int]$mkts[$mk][$c].t[$pr].mess; spend=[math]::Round($mkts[$mk][$c].t[$pr].spend) } } else { $t[$pr]=[ordered]@{ mess=0; spend=0 } } }
+    $nm=if($c2n.ContainsKey($c)){ $c2n[$c] } else { '' }
+    $spOut[$c]=[ordered]@{ name=$nm; t=$t }
+    $totCodes++
+  }
+  $out.byMkt[$mk]=[ordered]@{ sp=$spOut }
 }
 [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot '../public/meta.js'),"window.META_DATA = $($out | ConvertTo-Json -Depth 8);",(New-Object System.Text.UTF8Encoding $false))
-Write-Host ("`n✅ {0} mã SP -> meta.js" -f $out.sp.Count) -ForegroundColor Green
+Write-Host ("`n✅ {0} thị trường / {1} mã SP -> meta.js" -f $out.byMkt.Count,$totCodes) -ForegroundColor Green
