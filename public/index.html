@@ -556,7 +556,7 @@ function renderMeta(A){
   if(!hasMeta()){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="8" class="empty">—</td></tr>'; return; }
   if(!curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Meta chỉ có theo 4 kỳ nút. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem mess theo SP.'; tb.innerHTML='<tr><td colspan="8" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
   tag.textContent='kỳ: '+(lbl[curPreset]||curPreset);
-  note.innerHTML='Mess = hội thoại bắt đầu từ quảng cáo (cả IB + CD). Chi phí chỉ tính camp <b>IB</b> (CD chạy web không tính), <b>lọc theo đúng thị trường</b> đang xem. Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng với các SP trên = đúng <b>TỔNG</b>.';
+  note.innerHTML='Mess & chi phí <b>chỉ tính camp IB</b> (CD chạy web bỏ hẳn), <b>lọc theo đúng thị trường</b> đang xem. Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng với các SP trên = đúng <b>TỔNG</b>. · TT chỉ chạy CD (vd Indo) sẽ trống ở đây.';
   const _sp=mktSp();
   let rows=Object.keys(_sp).map(c=>{
     const t=(_sp[c].t||{})[curPreset]||{mess:0,spend:0};

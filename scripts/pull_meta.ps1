@@ -1,8 +1,8 @@
 ﻿<#
   pull_meta.ps1 — Kéo Meta Ads (mọi account System User), tách MÃ SP từ tên campaign
   (mã = [A-Z]\d{3} đứng trước "IB"/"CD"), gom theo mã SP × KỲ (today/yesterday/this_month/last_month):
-    - mess  = onsite_conversion.messaging_conversation_started_7d  (CẢ IB lẫn CD)
-    - spend = chi phí (CHỈ camp IB; CD chạy web nên không tính vào cost/mess)
+    - mess  = onsite_conversion.messaging_conversation_started_7d  (CHỈ camp IB)
+    - spend = chi phí (CHỈ camp IB; CD chạy web -> bỏ hẳn, không tính mess lẫn cost)
   Kéo theo date_preset (KHÔNG time_increment) để tránh lỗi 400 "reduce data" ở account nhiều camp.
   Xuất meta.js (window.META_DATA). ⚠️ TOKEN local, không deploy.
 #>
@@ -42,14 +42,15 @@ foreach($preset in $presets){
         $nm="" + $row.campaign_name
         $mch=$reCode.Match($nm); if(-not $mch.Success){ continue }
         $code=$mch.Groups[1].Value; $typ=$mch.Groups[2].Value
+        if($typ -ne 'IB'){ continue }   # CHỈ tính camp IB (cả mess lẫn chi phí); CD chạy web -> bỏ hẳn
         $mk=Get-Mkt $nm
         $mess=0; foreach($ac in $row.actions){ if($ac.action_type -eq 'onsite_conversion.messaging_conversation_started_7d'){ $mess=[double]$ac.value; break } }
         if(-not $mkts.ContainsKey($mk)){ $mkts[$mk]=@{} }
         $sp=$mkts[$mk]
         if(-not $sp.ContainsKey($code)){ $sp[$code]=@{ name=''; t=@{} } }
         if(-not $sp[$code].t.ContainsKey($preset)){ $sp[$code].t[$preset]=@{ mess=0.0; spend=0.0 } }
-        $sp[$code].t[$preset].mess += $mess
-        if($typ -eq 'IB'){ $sp[$code].t[$preset].spend += [double]$row.spend }
+        $sp[$code].t[$preset].mess  += $mess
+        $sp[$code].t[$preset].spend += [double]$row.spend
         $rows++
       }
       $url=$r.paging.next
