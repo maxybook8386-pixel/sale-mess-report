@@ -17,10 +17,12 @@ Write-Host "Ad accounts: $($accts.Count)" -ForegroundColor Cyan
 
 $reCode=[regex]'([A-Z]\d{3})\s+(IB|CD)\b'
 # Mã SP dùng CHUNG giữa các thị trường (vd A029 vừa Thái vừa Indo) -> phải tách theo tên camp.
-# Quy ước tên camp: chứa "Indo"->id, "Malay"->my, "Phil"->ph, còn lại->th (Thái mặc định).
+# ⚠️ Camp Indo KHÔNG phải lúc nào cũng ghi "Indo": nhiều camp IB đặt theo TÊN PAGE Indo
+#    (Rumah/Komo/Dunia/Cakra/Taman/anak) -> phải nhận diện cả các từ khoá page này.
+# Thái = page CGM/PSói/Changgo/Magic/Brainy (không dính từ khoá Indo). Malay->my, Phil->ph.
 function Get-Mkt([string]$name){
-  if($name -match '(?i)indo'){ 'id' }
-  elseif($name -match '(?i)malay'){ 'my' }
+  if($name -match '(?i)indo|idn|komo|rumah|dunia|cakra|taman|\banak\b'){ 'id' }
+  elseif($name -match '(?i)malay|malaysia'){ 'my' }
   elseif($name -match '(?i)\bphil'){ 'ph' }
   else { 'th' }
 }

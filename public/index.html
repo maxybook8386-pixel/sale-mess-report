@@ -136,6 +136,14 @@
     </div>
     <div class="spacer"></div>
     <span class="badge" id="mkt">🇹🇭 Thái Lan</span>
+    <span class="badge" id="rateBadge" style="gap:6px;cursor:pointer" title="Tỉ giá quy đổi ra VND — lưu riêng theo từng tháng. Bấm để sửa.">
+      <span id="rateShow">💱 —</span>
+      <span id="rateEdit" style="display:none;align-items:center;gap:4px">
+        <input id="rateInput" type="number" step="0.01" min="0" style="width:82px;border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:13px">
+        <button id="rateSave" class="fbtn" style="padding:3px 9px;font-size:12px">Lưu</button>
+        <button id="rateCancel" class="fbtn" style="padding:3px 8px;font-size:12px">✕</button>
+      </span>
+    </span>
     <span class="badge" style="background:#eef7f0;color:#1b8a55;border-color:#cdedd9">
       <span style="width:8px;height:8px;border-radius:50%;background:#1877f2;display:inline-block"></span> Nguồn: Facebook</span>
   </div>
@@ -307,6 +315,24 @@ function mktSp(){
   return (m&&m.key==='th' && META && META.sp) ? META.sp : {};   // fallback format cũ (chưa pull lại)
 }
 function hasMeta(){ return !!(META && (META.byMkt || META.sp)); }
+// ── Tỉ giá quy đổi VND, LƯU RIÊNG THEO THÁNG × THỊ TRƯỜNG (localStorage 'rateCfg') ──
+let curMonthKey='';   // 'yyyy-mm' của kỳ đang xem (đặt trong render)
+function rateStore(){ try{ return JSON.parse(localStorage.getItem('rateCfg')||'{}'); }catch(e){ return {}; } }
+function activeRate(monthKey){
+  const mk=(rateStore()[m&&m.key]||{});
+  const v=mk[monthKey];
+  return (v!=null && v!=='' && isFinite(+v) && +v>0) ? +v : (m&&m.rate_vnd||RATE_VND);
+}
+function setRate(monthKey,val){
+  const st=rateStore(); (st[m.key]=st[m.key]||{})[monthKey]=val;
+  localStorage.setItem('rateCfg',JSON.stringify(st));
+}
+function updateRateBadge(){
+  const show=document.getElementById('rateShow'); if(!show) return;
+  const st=rateStore()[m&&m.key]||{}; const saved=(st[curMonthKey]!=null && st[curMonthKey]!=='');
+  const mm=curMonthKey?('T'+curMonthKey.slice(5)+'/'+curMonthKey.slice(0,4)):'';
+  show.innerHTML=`💱 <b>${fmtN(RV)}₫</b>/${m.currency||'?'} · ${mm}${saved?'':' <span style="color:var(--muted)">(mặc định)</span>'}`;
+}
 const vndShort = v => { const x=v*RV;
   const s = x>=1e9?(x/1e9).toFixed(2)+' tỷ':x>=1e6?(x/1e6).toFixed(1)+' tr':x>=1e3?Math.round(x/1e3)+'k':String(Math.round(x));
   return s+'₫'; };
@@ -348,14 +374,14 @@ function aggregate(from,to){
   const pages={}, sales={}, statusCount={}, dayMap={}, prods={}, byCode={}, codePage={};
 
   const ensurePage = pid => pages[pid] || (pages[pid]={id:pid,name:(m.pages_meta[pid]||pid),
-    orders:0,closed:0,delivered:0,returned:0,canceled:0,revenue:0,interactions:0});
+    orders:0,closed:0,delivered:0,returned:0,canceled:0,revenue:0,delivRev:0,interactions:0});
 
   for(const o of ords){
     const p=ensurePage(o.pid);
     p.orders++;
     const cl=isClosed(o.st);
     if(o.st==='canceled'||o.st==='cancelled') p.canceled++;
-    if(o.st==='delivered') p.delivered++;
+    if(o.st==='delivered'){ p.delivered++; p.delivRev+=o.rev; }   // doanh thu đơn giao thành công (tiền COD thực thu)
     if(o.st==='returned'||o.st==='returning') p.returned++;
     if(cl){ p.closed++; p.revenue+=o.rev; }
     // sale
@@ -388,7 +414,7 @@ function aggregate(from,to){
     dd.interactions+=x.n;
   }
 
-  const T_ = {orders:0,closed:0,delivered:0,returned:0,canceled:0,revenue:0,interactions:0};
+  const T_ = {orders:0,closed:0,delivered:0,returned:0,canceled:0,revenue:0,delivRev:0,interactions:0};
   for(const pid in pages){const p=pages[pid];for(const k in T_)T_[k]+=p[k];}
 
   // incomplete = kỳ bắt đầu trước ngày sớm nhất có KH tương tác
@@ -418,6 +444,9 @@ let curFrom=null, curTo=null;
 function rerender(){ if(curFrom&&curTo) render(curFrom,curTo); }
 function render(from,to){
   curFrom=from; curTo=to;
+  curMonthKey=(fmt(to)||D.today).slice(0,7);   // tháng của kỳ (theo ngày cuối) → tỉ giá riêng tháng đó
+  RV=activeRate(curMonthKey);                   // ghi đè tỉ giá thị trường bằng tỉ giá cấu hình theo tháng
+  updateRateBadge();
   const A=aggregate(from,to);
   A.spInt=computeSpInt(from,to);
   const _lu=document.getElementById('lastUpd'); if(_lu){ const _g=(D.generated_at||'').split(' '); const _dp=(_g[0]||'').split('-'); _lu.textContent = _dp.length===3 ? `🕐 ${_dp[2]}/${_dp[1]} · ${_g[1]||''}` : '🕐 '+D.generated_at; }
@@ -459,6 +488,7 @@ function render(from,to){
     {lbl:'Trung bình đơn',val:vnd(aov),sub:`VND / đơn chốt`,money:true},
     {lbl:'Doanh số',val:vnd(A.tot.revenue),sub:`đơn chốt (gộp) · ×${RV}`,money:true},
     {lbl:'Doanh thu',val:vnd(doanhThuNet),sub:`sau hoàn ${_lmN?retRate.toFixed(1)+'%':'—'}`,money:true},
+    {lbl:'Doanh thu đơn TC',val:vnd(A.tot.delivRev),sub:`${fmtN(A.tot.delivered)} đơn đã giao · thực thu`,money:true},
     {lbl:'Ads / DT',val:adsDT===null?'—':adsDT.toFixed(1)+'%',sub:adsSpend===null?'chọn kỳ để xem':`chi ads ${fmtN(adsSpend)}đ ÷ doanh số`,
       color:adsDT===null?C.muted:(adsDT<45?C.green:adsDT<=55?C.amber:C.red)},
     {lbl:'Tỉ lệ hoàn',val:_lmN?retRate.toFixed(1)+'%':'—',sub:`đơn FB ${_dmm(_lmS)}–${_dmm(_lmE)} · ${fmtN(_ret)}/${fmtN(_lmN)}`,
@@ -658,6 +688,17 @@ if(!D||!D.markets||!D.markets.length){
     document.getElementById('mkt').textContent=`${m.flag||''} ${m.name}`;
     rerender();
   }));
+
+  // ── Sửa tỉ giá theo tháng (góc phải header) ──
+  const rShow=document.getElementById('rateShow'), rEdit=document.getElementById('rateEdit'), rInput=document.getElementById('rateInput');
+  function openRate(){ rInput.value=activeRate(curMonthKey); rShow.style.display='none'; rEdit.style.display='inline-flex'; rInput.focus(); rInput.select(); }
+  function closeRate(){ rEdit.style.display='none'; rShow.style.display='inline'; }
+  function saveRate(){ const n=parseFloat((''+rInput.value).replace(',','.')); if(!isFinite(n)||n<=0){ alert('Tỉ giá không hợp lệ'); return; } setRate(curMonthKey,n); closeRate(); rerender(); }
+  if(rShow){ rShow.addEventListener('click',openRate);
+    document.getElementById('rateSave').addEventListener('click',saveRate);
+    document.getElementById('rateCancel').addEventListener('click',closeRate);
+    rInput.addEventListener('keydown',e=>{ if(e.key==='Enter')saveRate(); else if(e.key==='Escape')closeRate(); });
+  }
 
   // ô chọn ngày tùy ý
   const dFrom=document.getElementById('dFrom'), dTo=document.getElementById('dTo');
