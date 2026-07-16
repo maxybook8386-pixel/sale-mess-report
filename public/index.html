@@ -175,7 +175,7 @@
   </div>
 
   <div class="panel" id="dailyPanel" style="margin-bottom:16px">
-    <h2>Diễn biến theo ngày <span class="tag">KH tương tác · Đơn · Doanh thu</span></h2>
+    <h2>Diễn biến theo ngày <span class="tag">KH tương tác · Tỉ lệ chốt · Doanh thu</span></h2>
     <canvas id="chDaily" height="90"></canvas>
   </div>
 
@@ -664,11 +664,14 @@ function drawCharts(A,pages,single){
     charts.daily=new Chart(document.getElementById('chDaily'),{
       data:{labels:lbl,datasets:[
         {type:'line',label:'KH tương tác',data:dl.map(d=>d.interactions),borderColor:C.blueD,backgroundColor:'rgba(47,127,224,.08)',fill:true,tension:.35,yAxisID:'y',pointRadius:2,borderWidth:2},
-        {type:'line',label:'Số đơn',data:dl.map(d=>d.orders),borderColor:C.green,tension:.35,yAxisID:'y',pointRadius:2,borderWidth:2},
+        {type:'line',label:'Tỉ lệ chốt',data:dl.map(d=>d.interactions>0?+(d.closed/d.interactions*100).toFixed(1):0),borderColor:C.green,tension:.35,yAxisID:'yPct',pointRadius:2,borderWidth:2},
         {type:'bar',label:'Doanh thu (VND)',data:dl.map(d=>Math.round(d.revenue*RV)),backgroundColor:'rgba(232,161,58,.35)',yAxisID:'y1',borderRadius:4}]},
-      options:{interaction:{mode:'index',intersect:false},plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}}},
+      options:{interaction:{mode:'index',intersect:false},
+        plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}},
+          tooltip:{callbacks:{label:c=>{const v=c.parsed.y; if(c.dataset.label==='Tỉ lệ chốt')return ' Tỉ lệ chốt: '+v.toFixed(1)+'%'; if(c.dataset.label==='Doanh thu (VND)')return ' Doanh thu: '+fmtN(v)+'₫'; return ' KH tương tác: '+fmtN(v);}}}},
         scales:{x:{grid:{display:false},ticks:{font:{size:11}}},
           y:{position:'left',grid:{color:'#eef4fb'},ticks:{font:{size:11}}},
+          yPct:{position:'right',display:false,min:0,max:100,grid:{display:false}},
           y1:{position:'right',grid:{display:false},ticks:{font:{size:11}}}}}});
   }
 }
