@@ -670,9 +670,9 @@ function drawCharts(A,pages,single){
         plugins:{legend:{position:'bottom',labels:{boxWidth:12,font:{size:11}}},
           tooltip:{callbacks:{label:c=>{const v=c.parsed.y; if(c.dataset.label==='Tỉ lệ chốt')return ' Tỉ lệ chốt: '+v.toFixed(1)+'%'; if(c.dataset.label==='Doanh thu (VND)')return ' Doanh thu: '+fmtN(v)+'₫'; return ' KH tương tác: '+fmtN(v);}}}},
         scales:{x:{grid:{display:false},ticks:{font:{size:11}}},
-          y:{position:'left',grid:{color:'#eef4fb'},ticks:{font:{size:11}}},
-          yPct:{position:'right',display:true,min:0,grid:{display:false},ticks:{stepSize:5,font:{size:10},color:C.green,callback:v=>v+'%'}},
-          y1:{position:'right',grid:{display:false},ticks:{font:{size:11}}}}}});
+          y:{position:'left',grid:{display:false},ticks:{font:{size:11}}},
+          yPct:{position:'right',display:true,min:0,grid:{color:'#eef4fb'},ticks:{stepSize:5,font:{size:10},color:C.green,callback:v=>v+'%'}},
+          y1:{position:'right',display:false,grid:{display:false}}}}});
   }
 }
 
