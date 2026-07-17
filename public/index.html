@@ -164,16 +164,6 @@
 
   <div class="kpis" id="kpis"></div>
 
-  <div class="panel" style="margin-bottom:16px">
-    <h2>Biến động theo ngày <span class="tag">KH tương tác · SĐT · đơn chốt · doanh thu / ngày (mới nhất trên đầu)</span></h2>
-    <div style="overflow:auto">
-      <table id="tblDaily">
-        <thead><tr><th>Ngày</th><th>KH tương tác</th><th>SĐT</th><th>Đơn chốt</th><th>Tỉ lệ chốt</th><th>Doanh thu</th></tr></thead>
-        <tbody></tbody>
-      </table>
-    </div>
-  </div>
-
   <div class="panel" id="dailyPanel" style="margin-bottom:16px">
     <h2>Diễn biến theo ngày <span class="tag">KH tương tác · Tỉ lệ chốt · Doanh thu</span></h2>
     <canvas id="chDaily" height="90"></canvas>
@@ -559,18 +549,6 @@ function render(from,to){
       <td class="num">${fmtN(s.delivered)}</td><td class="num">${fmtN(s.returned)}</td>
       <td class="num">${vnd(s.revenue)}</td></tr>`;}).join('')
     : `<tr><td colspan="7" class="empty">Không có dữ liệu</td></tr>`;
-
-  // bảng BIẾN ĐỘNG THEO NGÀY (mới nhất trên đầu)
-  const db=document.querySelector('#tblDaily tbody');
-  const days=[...A.daily].sort((a,b)=>a.date<b.date?1:-1);
-  db.innerHTML = days.length ? days.map(d=>{
-    const cr=pct(d.closed||0, d.interactions||0);
-    const dm=d.date.split('-');
-    return `<tr><td class="pg">${dm[2]}/${dm[1]}</td>
-      <td class="num">${fmtN(d.interactions)}</td><td class="num">${fmtN(d.orders)}</td><td class="num">${fmtN(d.closed||0)}</td>
-      <td><span class="pill ${d.interactions?(cr>=15?'g':cr>=8?'a':'r'):'n'}">${d.interactions?cr.toFixed(1)+'%':'—'}</span></td>
-      <td class="num">${vnd(d.revenue)}</td></tr>`;}).join('')
-    : `<tr><td colspan="6" class="empty">Không có dữ liệu</td></tr>`;
 
   renderMeta(A);
   drawCharts(A,pages,single);
