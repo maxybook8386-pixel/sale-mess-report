@@ -45,8 +45,11 @@ foreach($preset in $presets){
       if(-not $r){ break }
       foreach($row in $r.data){
         $nm="" + $row.campaign_name
+        $mch=$reCode.Match($nm); if(-not $mch.Success){ continue }
+        $code=$mch.Groups[1].Value; $typ=$mch.Groups[2].Value
+        if($typ -ne 'IB'){ continue }   # CHỈ camp IB (mess, chi phí SP, lẫn chi phí đội) — khớp đơn FB inbox
 
-        # ── ADS THEO MÃ NV (join đội dự án ở frontend qua mã NV) — gom MỌI camp IB+CD ──
+        # ── ADS THEO MÃ NV (chi phí đội dự án) — chỉ IB để khớp doanh số đơn FB inbox ──
         $toks = $nm.Trim() -split '\s+'
         if($toks.Count -ge 3 -and $toks[1] -match '^\d{6,}$'){
           $sid=$toks[1]; $snm=$toks[2]; $mkP=Get-Mkt $nm; $spd=[double]$row.spend
@@ -56,10 +59,6 @@ foreach($preset in $presets){
           if(-not $P.t.ContainsKey($preset)){ $P.t[$preset]=@{ spend=0.0; camps=0 } }
           $P.t[$preset].spend += $spd; $P.t[$preset].camps += 1
         }
-
-        $mch=$reCode.Match($nm); if(-not $mch.Success){ continue }
-        $code=$mch.Groups[1].Value; $typ=$mch.Groups[2].Value
-        if($typ -ne 'IB'){ continue }   # CHỈ tính camp IB (cả mess lẫn chi phí); CD chạy web -> bỏ hẳn
         $mk=Get-Mkt $nm
         $mess=0; foreach($ac in $row.actions){ if($ac.action_type -eq 'onsite_conversion.messaging_conversation_started_7d'){ $mess=[double]$ac.value; break } }
         if(-not $mkts.ContainsKey($mk)){ $mkts[$mk]=@{} }
