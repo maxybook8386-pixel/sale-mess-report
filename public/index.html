@@ -227,12 +227,12 @@
   </div>
 
   <div class="panel" style="margin-bottom:16px">
-    <h2>💬 Mess &amp; tỉ lệ chốt theo SP <span class="tag">nguồn Meta Ads</span> <span class="tag" id="metaTag">kỳ: —</span></h2>
+    <h2>💬 Mess &amp; tỉ lệ chốt theo SP <span class="tag">mess theo thẻ · chi phí Meta</span> <span class="tag" id="metaTag">kỳ: —</span></h2>
     <div id="metaNote" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
     <div style="overflow:auto">
       <table id="tblMeta">
         <thead><tr>
-          <th>Mã SP</th><th>Cuốn</th><th>💬 Mess</th><th>Số đơn</th><th>Đơn chốt</th>
+          <th>Mã SP</th><th>Cuốn</th><th>💬 Mess (thẻ)</th><th>Số đơn</th><th>Đơn chốt</th>
           <th>Tỉ lệ chốt</th><th>Chi phí ads (IB)</th><th>Cost/mess</th>
         </tr></thead>
         <tbody></tbody>
@@ -305,10 +305,10 @@
       <span id="tmMsg" style="font-size:12.5px;font-weight:700"></span>
     </div>
     <div id="tmList" style="margin-bottom:12px;font-size:12.5px"></div>
-    <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Thẻ đã gán</div>
-    <div style="overflow:auto;max-height:46vh">
+    <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Tất cả thẻ (nhìn nội dung mẫu → gõ mã SP ở cột cuối, tự lưu)</div>
+    <div style="overflow:auto;max-height:52vh">
       <table id="tblTags" style="font-size:13px"><thead><tr>
-        <th>ID thẻ</th><th>Mã SP</th><th>Tổng (tích lũy)</th><th>Hôm nay</th><th></th>
+        <th>ID</th><th>Nội dung mẫu (tin gần nhất)</th><th>Tổng</th><th>Hôm nay</th><th>Mã SP</th>
       </tr></thead><tbody></tbody></table>
     </div>
   </div>
@@ -783,15 +783,18 @@ function openTeam(code){
 function renderMeta(A){
   const tag=document.getElementById('metaTag'), note=document.getElementById('metaNote'), tb=document.querySelector('#tblMeta tbody');
   const lbl={today:'Hôm nay',yesterday:'Hôm qua',this_month:'Tháng này',last_month:'Tháng trước'};
-  if(!hasMeta()){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="8" class="empty">—</td></tr>'; return; }
-  if(!curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Meta chỉ có theo 4 kỳ nút. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem mess theo SP.'; tb.innerHTML='<tr><td colspan="8" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
-  tag.textContent='kỳ: '+(lbl[curPreset]||curPreset);
-  note.innerHTML='Mess & chi phí <b>chỉ tính camp IB</b> (CD chạy web bỏ hẳn), <b>lọc theo đúng thị trường</b> đang xem. Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng với các SP trên = đúng <b>TỔNG</b>. · TT chỉ chạy CD (vd Indo) sẽ trống ở đây.';
-  const _sp=mktSp();
-  let rows=Object.keys(_sp).map(c=>{
-    const t=(_sp[c].t||{})[curPreset]||{mess:0,spend:0};
+  const _sp=mktSp();                          // Meta (cho CHI PHÍ IB)
+  const spInt=A.spInt||{};                     // MESS = KH tương tác theo THẺ SP (phủ mọi nguồn, không chỉ ads)
+  const hasTag=Object.keys(TAGMAP||{}).some(k=>TAGMAP[k]);
+  tag.textContent = curPreset?('kỳ: '+(lbl[curPreset]||curPreset)):('kỳ: '+(curFrom?viDate(curFrom)+'–'+viDate(curTo):'—'));
+  note.innerHTML='<b>Mess = KH tương tác theo THẺ SP</b> (thẻ sếp gắn ở Pancake — phủ mọi nguồn, không chỉ ads). Chi phí = camp IB (Meta, chỉ có theo 4 kỳ nút). Tỉ lệ chốt = đơn chốt ÷ mess-thẻ. · Dòng <b>SP khác</b> = đơn của SP chưa gắn thẻ → cộng lại = đúng <b>TỔNG</b>.'+(hasTag?'':' · <b style="color:#c0392b">⚠️ Chưa cấu hình thẻ→SP</b> (bấm ⚙️ Cấu hình thẻ SP ở menu trái).');
+  // tên cuốn theo mã SP (từ đơn)
+  const c2n={}; for(const p of (A.prods||[])){ if(p.code&&p.name&&!c2n[p.code]) c2n[p.code]=p.name; }
+  const codes=new Set([...Object.keys(spInt),...Object.keys(A.byCode||{})]);
+  let rows=[...codes].map(c=>{
+    const t=(_sp[c]&&(_sp[c].t||{})[curPreset])||null;
     const bc=A.byCode[c]||{orders:0,closed:0};
-    return {code:c,name:_sp[c].name||'',mess:t.mess||0,spend:t.spend||0,orders:bc.orders,closed:bc.closed};
+    return {code:c,name:(_sp[c]&&_sp[c].name)||c2n[c]||'',mess:spInt[c]||0,spend:(curPreset&&t)?(t.spend||0):0,orders:bc.orders,closed:bc.closed};
   }).filter(r=>r.mess>0||r.orders>0);
   rows.sort((a,b)=>{ const pa=PRIO.indexOf(a.code),pb=PRIO.indexOf(b.code);
     if(pa>=0||pb>=0) return (pa<0?99:pa)-(pb<0?99:pb); return b.mess-a.mess; });
@@ -970,20 +973,24 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
 // ---- Ô GÁN THẺ TAG → MÃ SP ----
 function renderTagMapUI(){
   const today=(D&&D.today)||'';
-  const ti=(TAGINT&&TAGINT.tag_int)||{}, tot=(TAGINT&&TAGINT.tag_total)||{};
-  // dòng gợi ý: các thẻ đang có dữ liệu (bấm để điền ID)
-  const detected=Object.keys(tot).sort((a,b)=>tot[b]-tot[a]).slice(0,12);
-  document.getElementById('tmList').innerHTML = detected.length
-    ? '<span style="color:var(--muted)">💡 Thẻ đang có dữ liệu (bấm để chọn ID): </span>'+detected.map(id=>`<b data-fill="${id}" style="cursor:pointer;color:var(--blue-d)">${id}</b><span style="color:var(--muted);font-size:11px">(${fmtN(tot[id])})</span>`).join(' · ')
-    : '<span style="color:var(--muted)">Chưa có dữ liệu thẻ (đợi cập nhật).</span>';
-  // bảng: CHỈ thẻ đã gán
-  const keys=Object.keys(TAGMAP).filter(k=>TAGMAP[k]);
-  document.querySelector('#tblTags tbody').innerHTML = keys.length ? keys.map(id=>{
-    const td=(ti[id]||{})[today]||0, tt=tot[id]||0;
-    return `<tr><td class="pg"><b>${id}</b></td><td><b style="color:var(--green)">${TAGMAP[id]}</b></td><td class="num">${fmtN(tt)}</td><td class="num">${fmtN(td)}</td><td><b data-del="${id}" style="cursor:pointer;color:#c0392b">✕ xóa</b></td></tr>`;
-  }).join('') : '<tr><td colspan="5" class="empty">Chưa gán thẻ nào — nhập ID + mã SP rồi bấm Thêm.</td></tr>';
-  document.querySelectorAll('#tblTags [data-del]').forEach(b=>b.onclick=()=>{ delete TAGMAP[b.dataset.del]; saveTagmap(); });
-  document.querySelectorAll('#tmList [data-fill]').forEach(b=>b.onclick=()=>{ document.getElementById('tmId').value=b.dataset.fill; document.getElementById('tmSp').focus(); });
+  const ti=(TAGINT&&TAGINT.tag_int)||{}, tot=(TAGINT&&TAGINT.tag_total)||{}, smp=(TAGINT&&TAGINT.tag_sample)||{};
+  const nMap=Object.keys(TAGMAP).filter(k=>TAGMAP[k]).length;
+  document.getElementById('tmList').innerHTML='<span style="color:var(--muted)">💡 Nhìn <b>nội dung mẫu</b> đoán thẻ thuộc sách nào → gõ <b>mã SP</b> ở cột phải (tự lưu, bảng SP cập nhật ngay). Đã gán: <b style="color:var(--green)">'+nMap+'</b> thẻ.</span>';
+  const ids=Object.keys(tot).sort((a,b)=>(tot[b]||0)-(tot[a]||0));
+  document.querySelector('#tblTags tbody').innerHTML = ids.length ? ids.map(id=>{
+    const td=(ti[id]||{})[today]||0, tt=tot[id]||0, sp=TAGMAP[id]||'';
+    const snip=((smp[id]||'')+'').slice(0,64).replace(/</g,'&lt;');
+    return `<tr${sp?' style="background:#f2fbf5"':''}><td class="pg"><b>${id}</b></td>
+      <td style="font-size:12px;color:var(--muted);max-width:340px;white-space:normal">${snip||'—'}</td>
+      <td class="num">${fmtN(tt)}</td><td class="num">${fmtN(td)}</td>
+      <td><input data-map="${id}" value="${sp}" placeholder="mã SP" style="width:86px;padding:4px 7px;border:1px solid #cfd8e6;border-radius:7px;font-size:12.5px;text-transform:uppercase"></td></tr>`;
+  }).join('') : '<tr><td colspan="5" class="empty">Chưa có dữ liệu thẻ (đợi cập nhật).</td></tr>';
+  document.querySelectorAll('#tblTags [data-map]').forEach(inp=>{
+    inp.onchange=()=>{ const id=inp.dataset.map, v=inp.value.trim().toUpperCase();
+      if(v)TAGMAP[id]=v; else delete TAGMAP[id];
+      localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); rerender();
+      inp.closest('tr').style.background=v?'#f2fbf5':''; };
+  });
 }
 function saveTagmap(){ localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); renderTagMapUI(); rerender(); }
 document.getElementById('tmAdd').addEventListener('click',()=>{
