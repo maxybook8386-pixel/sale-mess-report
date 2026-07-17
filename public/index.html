@@ -974,14 +974,26 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
 // ---- Ô GÁN THẺ TAG → MÃ SP ----
 function renderTagMapUI(){
   const nMap=Object.keys(TAGMAP).filter(k=>TAGMAP[k]).length;
-  document.getElementById('tmList').innerHTML='<span style="color:var(--muted)">💡 Nhập <b>ID thẻ</b> + <b>mã SP</b> ở trên rồi bấm <b>Thêm</b> — mỗi thẻ gán sẽ hiện 1 dòng dưới đây. Đã gán: <b style="color:var(--green)">'+nMap+'</b> thẻ.</span>';
-  document.getElementById('tmAssigned').innerHTML='';
+  const tot=(TAGINT&&TAGINT.tag_total)||{}, ti=(TAGINT&&TAGINT.tag_int)||{}, smp=(TAGINT&&TAGINT.tag_sample)||{}, today=(D&&D.today)||'';
+  document.getElementById('tmList').innerHTML='<span style="color:var(--muted)">💡 Bấm 1 thẻ ở khu <b>"đang có tương tác"</b> để chọn ID → nhập <b>mã SP</b> → <b>Thêm</b>. ⚠️ Chỉ gán thẻ CÓ số lượng, đừng gán thẻ 0. Đã gán: <b style="color:var(--green)">'+nMap+'</b> thẻ.</span>';
+  // Khu gợi ý: thẻ đang có tương tác (sắp theo tổng, ưu tiên thẻ có data hôm nay)
+  const active=Object.keys(tot).filter(id=>tot[id]>0 && !TAGMAP[id])
+    .sort((a,b)=>((ti[b]||{})[today]||0)-((ti[a]||{})[today]||0) || tot[b]-tot[a]).slice(0,24);
+  const box=document.getElementById('tmAssigned');
+  box.innerHTML='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">🔥 Thẻ đang có tương tác — bấm để chọn (số = hôm nay · tổng)</div>'
+    +(active.length?('<div style="display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow:auto">'+active.map(id=>{
+        const td=(ti[id]||{})[today]||0, tt=tot[id]||0, sn=((smp[id]||'')+'').slice(0,40).replace(/"/g,'');
+        return `<span data-fill="${id}" title="${sn}" style="cursor:pointer;background:${td>0?'#fff5e6':'#f2f6fc'};border:1px solid ${td>0?'#f5d59a':'#d8e2f0'};border-radius:8px;padding:3px 9px;font-size:12.5px"><b>${id}</b> <span style="color:${td>0?'#d98a1f':'var(--muted)'};font-weight:700">${td}</span><span style="color:var(--muted)">·${tt}</span></span>`;
+      }).join('')+'</div>'):'<span style="font-size:12px;color:var(--muted)">Hết thẻ chưa gán có tương tác.</span>');
+  box.querySelectorAll('[data-fill]').forEach(b=>b.onclick=()=>{ document.getElementById('tmId').value=b.dataset.fill; document.getElementById('tmSp').focus(); });
+  // Bảng đã gán
   const ids=Object.keys(TAGMAP).filter(k=>TAGMAP[k]);
-  document.querySelector('#tblTags tbody').innerHTML = ids.length ? ids.map(id=>
-    `<tr><td class="pg"><b>${id}</b></td>
+  document.querySelector('#tblTags tbody').innerHTML = ids.length ? ids.map(id=>{
+    const td=(ti[id]||{})[today]||0, tt=tot[id]||0;
+    return `<tr><td class="pg"><b>${id}</b> <span style="color:var(--muted);font-weight:400;font-size:11px">(${td}·${tt})</span></td>
       <td><b style="color:var(--green)">${TAGMAP[id]}</b></td>
-      <td><b data-del="${id}" style="cursor:pointer;color:#c0392b">✕ xóa</b></td></tr>`
-  ).join('') : '<tr><td colspan="3" class="empty">Chưa gán thẻ nào — nhập ID + mã SP ở trên rồi bấm Thêm.</td></tr>';
+      <td><b data-del="${id}" style="cursor:pointer;color:#c0392b">✕ xóa</b></td></tr>`;
+  }).join('') : '<tr><td colspan="3" class="empty">Chưa gán thẻ nào — bấm 1 thẻ ở trên rồi nhập mã SP + Thêm.</td></tr>';
   document.querySelectorAll('#tblTags [data-del]').forEach(b=>b.onclick=()=>{ delete TAGMAP[b.dataset.del]; saveTagmap(); });
 }
 function saveTagmap(){ localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); renderTagMapUI(); rerender(); }
