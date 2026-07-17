@@ -304,7 +304,8 @@
       <button id="tmAdd" class="fbtn" style="background:#2f6fed;color:#fff">+ Thêm / Cập nhật</button>
       <span id="tmMsg" style="font-size:12.5px;font-weight:700"></span>
     </div>
-    <div id="tmList" style="margin-bottom:12px;font-size:12.5px"></div>
+    <div id="tmList" style="margin-bottom:8px;font-size:12.5px"></div>
+    <div id="tmAssigned" style="margin-bottom:12px"></div>
     <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Tất cả thẻ (nhìn nội dung mẫu → gõ mã SP ở cột cuối, tự lưu)</div>
     <div style="overflow:auto;max-height:52vh">
       <table id="tblTags" style="font-size:13px"><thead><tr>
@@ -988,9 +989,23 @@ function renderTagMapUI(){
   document.querySelectorAll('#tblTags [data-map]').forEach(inp=>{
     inp.onchange=()=>{ const id=inp.dataset.map, v=inp.value.trim().toUpperCase();
       if(v)TAGMAP[id]=v; else delete TAGMAP[id];
-      localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); rerender();
+      localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); rerender(); renderAssigned();
       inp.closest('tr').style.background=v?'#f2fbf5':''; };
   });
+  renderAssigned();
+}
+// Danh sách thẻ ĐÃ GÁN (ID → SP), cập nhật ngay khi gán
+function renderAssigned(){
+  const box=document.getElementById('tmAssigned'); if(!box) return;
+  const tot=(TAGINT&&TAGINT.tag_total)||{};
+  const ids=Object.keys(TAGMAP).filter(k=>TAGMAP[k]).sort((a,b)=>(tot[b]||0)-(tot[a]||0));
+  if(!ids.length){ box.innerHTML='<span style="font-size:12px;color:var(--muted)">Chưa gán thẻ nào.</span>'; return; }
+  box.innerHTML='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">✅ Đã gán ('+ids.length+' thẻ)</div>'
+    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+ids.map(id=>
+      `<span style="display:inline-flex;align-items:center;gap:5px;background:#eaf6ee;border:1px solid #c7e7d3;border-radius:8px;padding:3px 9px;font-size:12.5px">
+        <b>${id}</b><span style="color:var(--muted)">→</span><b style="color:var(--green)">${TAGMAP[id]}</b>
+        <b data-unassign="${id}" style="cursor:pointer;color:#c0392b;margin-left:2px">✕</b></span>`).join('')+'</div>';
+  box.querySelectorAll('[data-unassign]').forEach(b=>b.onclick=()=>{ delete TAGMAP[b.dataset.unassign]; localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); renderTagMapUI(); rerender(); });
 }
 function saveTagmap(){ localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); renderTagMapUI(); rerender(); }
 document.getElementById('tmAdd').addEventListener('click',()=>{
