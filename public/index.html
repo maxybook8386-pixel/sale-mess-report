@@ -227,12 +227,12 @@
   </div>
 
   <div class="panel" style="margin-bottom:16px">
-    <h2>💬 Mess &amp; tỉ lệ chốt theo SP <span class="tag">mess theo thẻ · chi phí Meta</span> <span class="tag" id="metaTag">kỳ: —</span></h2>
+    <h2>💬 Mess &amp; tỉ lệ chốt theo SP <span class="tag">nguồn Meta Ads (IB)</span> <span class="tag" id="metaTag">kỳ: —</span></h2>
     <div id="metaNote" style="font-size:12px;color:var(--muted);margin-bottom:8px"></div>
     <div style="overflow:auto">
       <table id="tblMeta">
         <thead><tr>
-          <th>Mã SP</th><th>Cuốn</th><th>💬 Mess (thẻ)</th><th>Số đơn</th><th>Đơn chốt</th>
+          <th>Mã SP</th><th>Cuốn</th><th>💬 Mess</th><th>Số đơn</th><th>Đơn chốt</th>
           <th>Tỉ lệ chốt</th><th>Chi phí ads (IB)</th><th>Cost/mess</th>
         </tr></thead>
         <tbody></tbody>
@@ -791,18 +791,16 @@ function openTeam(code){
 function renderMeta(A){
   const tag=document.getElementById('metaTag'), note=document.getElementById('metaNote'), tb=document.querySelector('#tblMeta tbody');
   const lbl={today:'Hôm nay',yesterday:'Hôm qua',this_month:'Tháng này',last_month:'Tháng trước'};
-  const _sp=mktSp();                          // Meta (cho CHI PHÍ IB)
-  const spInt=A.spInt||{};                     // MESS = KH tương tác theo THẺ SP (phủ mọi nguồn, không chỉ ads)
-  const autoSp=!!(TAGINT&&TAGINT.sp_int&&Object.keys(TAGINT.sp_int).length);
-  tag.textContent = curPreset?('kỳ: '+(lbl[curPreset]||curPreset)):('kỳ: '+(curFrom?viDate(curFrom)+'–'+viDate(curTo):'—'));
-  note.innerHTML='<b>Mess = KH tương tác theo THẺ SP</b> — '+(autoSp?'<b style="color:var(--green)">TỰ ĐỘNG</b> đọc tên thẻ sếp gắn ở Pancake (thẻ tên = mã SP), khỏi gán tay':'gán thẻ→SP ở ⚙️ Cấu hình')+'. Chi phí = camp IB (Meta, chỉ có theo 4 kỳ nút). Tỉ lệ chốt = đơn chốt ÷ mess-thẻ. · Dòng <b>SP khác</b> = đơn của SP chưa có thẻ → cộng lại = <b>TỔNG</b>.';
-  // tên cuốn theo mã SP (từ đơn)
+  if(!hasMeta()){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="8" class="empty">—</td></tr>'; return; }
+  if(!curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Mess Meta chỉ có theo 4 kỳ nút. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem mess theo SP.'; tb.innerHTML='<tr><td colspan="8" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
+  const _sp=mktSp();
+  tag.textContent='kỳ: '+(lbl[curPreset]||curPreset);
+  note.innerHTML='<b>Mess = hội thoại từ quảng cáo IB</b> (Meta messaging, theo mã SP), <b>lọc theo đúng thị trường</b>. Chi phí = camp IB. Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng lại = <b>TỔNG</b>. · TT chỉ chạy CD (vd Indo) sẽ trống.';
   const c2n={}; for(const p of (A.prods||[])){ if(p.code&&p.name&&!c2n[p.code]) c2n[p.code]=p.name; }
-  const codes=new Set([...Object.keys(spInt),...Object.keys(A.byCode||{})]);
-  let rows=[...codes].map(c=>{
-    const t=(_sp[c]&&(_sp[c].t||{})[curPreset])||null;
+  let rows=Object.keys(_sp).map(c=>{
+    const t=(_sp[c].t||{})[curPreset]||{mess:0,spend:0};
     const bc=A.byCode[c]||{orders:0,closed:0};
-    return {code:c,name:(_sp[c]&&_sp[c].name)||c2n[c]||'',mess:spInt[c]||0,spend:(curPreset&&t)?(t.spend||0):0,orders:bc.orders,closed:bc.closed};
+    return {code:c,name:_sp[c].name||c2n[c]||'',mess:t.mess||0,spend:t.spend||0,orders:bc.orders,closed:bc.closed};
   }).filter(r=>r.mess>0||r.orders>0);
   rows.sort((a,b)=>{ const pa=PRIO.indexOf(a.code),pb=PRIO.indexOf(b.code);
     if(pa>=0||pb>=0) return (pa<0?99:pa)-(pb<0?99:pb); return b.mess-a.mess; });
