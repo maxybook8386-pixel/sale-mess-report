@@ -27,8 +27,8 @@ function Get-Mkt([string]$name){
   else { 'th' }
 }
 $mkts=@{}   # mktkey -> @{ code -> @{name; t=@{preset->@{mess;spend}}} }
-# DỰ ÁN (đội NV): prefix tên camp (A2S03F->A2) = mã dự án; token[1] = mã NV (trùng ID sale trong đơn POS)
-# projs: mkt -> prefix -> @{ brand; staff=@{id->@{name;spend}}; t=@{preset->@{spend;camps}} }  (gom CẢ IB lẫn CD)
+# ADS THEO MÃ NV: token[1] tên camp = mã NV (trùng ID sale POS). Frontend gom mã NV thành đội dự án.
+# projs: mkt -> staffId -> @{ name; t=@{preset->@{spend;camps}} }  (gom CẢ IB lẫn CD)
 $projs=@{}
 
 foreach($preset in $presets){
@@ -46,25 +46,15 @@ foreach($preset in $presets){
       foreach($row in $r.data){
         $nm="" + $row.campaign_name
 
-        # ── DỰ ÁN (đội NV): gom MỌI camp (IB+CD) theo prefix + mã NV ──
+        # ── ADS THEO MÃ NV (join đội dự án ở frontend qua mã NV) — gom MỌI camp IB+CD ──
         $toks = $nm.Trim() -split '\s+'
         if($toks.Count -ge 3 -and $toks[1] -match '^\d{6,}$'){
-          $pref=$toks[0]
-          if($pref -match '^([A-Za-z]\d+)S'){ $pm=$Matches[1].ToUpper() } else { $pm=$pref.ToUpper() }
-          if($pm -notmatch '^[A-Z]\d+$'){ $pm=$null }   # bỏ prefix rác (AVB, chuỗi lạ)
-          if($pm){
           $sid=$toks[1]; $snm=$toks[2]; $mkP=Get-Mkt $nm; $spd=[double]$row.spend
           if(-not $projs.ContainsKey($mkP)){ $projs[$mkP]=@{} }
-          if(-not $projs[$mkP].ContainsKey($pm)){
-            if($pm -match '^[Aa]'){ $br='AVB' } elseif($pm -match '^[Bb]'){ $br='BAHA' } else { $br='' }
-            $projs[$mkP][$pm]=@{ brand=$br; staff=@{}; t=@{} }
-          }
-          $P=$projs[$mkP][$pm]
-          if(-not $P.staff.ContainsKey($sid)){ $P.staff[$sid]=@{ name=$snm; spend=0.0 } }
-          $P.staff[$sid].spend += $spd
+          if(-not $projs[$mkP].ContainsKey($sid)){ $projs[$mkP][$sid]=@{ name=$snm; t=@{} } }
+          $P=$projs[$mkP][$sid]
           if(-not $P.t.ContainsKey($preset)){ $P.t[$preset]=@{ spend=0.0; camps=0 } }
           $P.t[$preset].spend += $spd; $P.t[$preset].camps += 1
-          }
         }
 
         $mch=$reCode.Match($nm); if(-not $mch.Success){ continue }
@@ -109,20 +99,18 @@ foreach($mk in $allMkts){
       $totCodes++
     }
   }
-  # -- DỰ ÁN (đội NV) --
-  $projOut=[ordered]@{}
+  # -- ADS THEO MÃ NV (staffAds) --
+  $saOut=[ordered]@{}
   if($projs.ContainsKey($mk)){
-    foreach($pm in ($projs[$mk].Keys | Sort-Object)){
-      $P=$projs[$mk][$pm]
-      $stOut=[ordered]@{}
-      foreach($sid in ($P.staff.Keys | Sort-Object)){ $stOut[$sid]=[ordered]@{ name=$P.staff[$sid].name; spend=[math]::Round($P.staff[$sid].spend) } }
+    foreach($sid in ($projs[$mk].Keys | Sort-Object)){
+      $P=$projs[$mk][$sid]
       $pt=[ordered]@{}
       foreach($pr in $presets){ if($P.t.ContainsKey($pr)){ $pt[$pr]=[ordered]@{ spend=[math]::Round($P.t[$pr].spend); camps=[int]$P.t[$pr].camps } } else { $pt[$pr]=[ordered]@{ spend=0; camps=0 } } }
-      $projOut[$pm]=[ordered]@{ brand=$P.brand; staff=$stOut; t=$pt }
+      $saOut[$sid]=[ordered]@{ name=$P.name; t=$pt }
       $totProj++
     }
   }
-  $out.byMkt[$mk]=[ordered]@{ sp=$spOut; projects=$projOut }
+  $out.byMkt[$mk]=[ordered]@{ sp=$spOut; staffAds=$saOut }
 }
 [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot '../public/meta.js'),"window.META_DATA = $($out | ConvertTo-Json -Depth 8);",(New-Object System.Text.UTF8Encoding $false))
-Write-Host ("`n✅ {0} thị trường / {1} mã SP / {2} dự án -> meta.js" -f $out.byMkt.Count,$totCodes,$totProj) -ForegroundColor Green
+Write-Host ("`n✅ {0} thị trường / {1} mã SP / {2} NV(ads) -> meta.js" -f $out.byMkt.Count,$totCodes,$totProj) -ForegroundColor Green

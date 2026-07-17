@@ -584,11 +584,21 @@ function render(from,to){
 // VND gọn: 1.2tr · 512k · 900đ
 function vndC(v){ v=Math.round(v||0); if(Math.abs(v)>=1e6)return (v/1e6).toFixed(v/1e6>=10?0:1).replace(/\.0$/,'')+'tr'; if(Math.abs(v)>=1e3)return Math.round(v/1e3)+'k'; return v+'đ'; }
 
-// DỰ ÁN TRONG THỊ TRƯỜNG: đội NV (từ Meta) × đơn/hoàn (từ POS, join qua mã NV)
+// CẤU HÌNH DỰ ÁN = đội NV (mã NV trùng ID sale POS + ID trong tên camp Meta). Sửa ở đây khi có đội mới.
+const PROJECTS = {
+  th:[
+    {code:'A2',brand:'AVB',leader:'91080362',staff:['91080362','85060607','85060502']},   // Dũng · Vân · Đăng
+    {code:'A4',brand:'AVB',leader:'82080259',staff:['82080259','88110080','85060604']},   // Vân Anh · Quân · Huyền
+    {code:'B1',brand:'BAHA',leader:'85060600',staff:['85060600']},                        // Trường
+  ],
+  id:[]   // đội Indo — chờ sếp chốt phân đội
+};
+// DỰ ÁN TRONG THỊ TRƯỜNG: doanh số/hoàn từ đơn POS + chi phí/camps từ Meta, gom theo MÃ NV của đội
 function renderProjects(A){
   const grid=document.getElementById('projGrid'), panel=document.getElementById('projPanel');
-  const P=(META&&META.byMkt&&META.byMkt[m&&m.key]&&META.byMkt[m.key].projects)||null;
-  if(!P||!Object.keys(P).length){ if(panel)panel.style.display='none'; return; }
+  const list=PROJECTS[m&&m.key]||[];
+  const SA=(META&&META.byMkt&&META.byMkt[m&&m.key]&&META.byMkt[m.key].staffAds)||{};
+  if(!list.length){ if(panel)panel.style.display='none'; return; }
   panel.style.display='';
   // gộp đơn theo mã NV (staffID = số đầu tên sale). Đơn trong data ĐÃ lọc nguồn FB.
   const byStaff={};
@@ -597,23 +607,21 @@ function renderProjects(A){
     const b=byStaff[id]||(byStaff[id]={rev:0,closed:0,delivered:0,returned:0,name:String(s.name).replace(/^\d+[_\s]*/,'').trim()});
     b.rev+=s.revenue||0; b.closed+=s.closed||0; b.delivered+=s.delivered||0; b.returned+=s.returned||0;
   }
-  const cards=Object.keys(P).map(code=>{
-    const pr=P[code], ids=Object.keys(pr.staff||{});
-    // leader = NV chi tiêu Meta cao nhất
-    let leadId=ids[0]||'', hi=-1;
-    for(const id of ids){ const sp=(pr.staff[id].spend||0); if(sp>hi){hi=sp;leadId=id;} }
-    const leadName=(byStaff[leadId]&&byStaff[leadId].name)||(pr.staff[leadId]&&pr.staff[leadId].name)||'—';
-    let rev=0,closed=0,deliv=0,ret=0;
-    for(const id of ids){ const b=byStaff[id]; if(!b)continue; rev+=b.rev; closed+=b.closed; deliv+=b.delivered; ret+=b.returned; }
+  const cards=list.map(pr=>{
+    let rev=0,closed=0,deliv=0,ret=0,spend=0,camps=0;
+    for(const id of pr.staff){
+      const b=byStaff[id]; if(b){ rev+=b.rev; closed+=b.closed; deliv+=b.delivered; ret+=b.returned; }
+      const sa=SA[id]; if(sa&&curPreset){ const t=(sa.t||{})[curPreset]||{}; spend+=t.spend||0; camps+=t.camps||0; }
+    }
+    const leadName=(byStaff[pr.leader]&&byStaff[pr.leader].name)||(SA[pr.leader]&&SA[pr.leader].name)||'—';
     const doanhSo=rev*RV;                                   // VND
-    const pt=(pr.t||{})[curPreset]||null;                   // chi phí/camps chỉ có theo kỳ preset
-    const chiPhi=pt?pt.spend:null, camps=pt?pt.camps:null;
+    const chiPhi=curPreset?spend:null;                      // chi phí/camps chỉ có theo kỳ preset
     const denom=deliv+ret, hoan=denom?ret/denom*100:0;
     const dtDuKien=doanhSo*(1-hoan/100);
     const gttb=closed?doanhSo/closed:0;
     const adsDS=(chiPhi!=null&&doanhSo>0)?chiPhi/doanhSo*100:null;
     const empty=(doanhSo<=0 && !(chiPhi>0));
-    return {code,brand:pr.brand||'',leadName,camps,nv:ids.length,doanhSo,dtDuKien,chiPhi,gttb,closed,adsDS,hoan,denom,empty,sortv:doanhSo+(chiPhi||0)};
+    return {code:pr.code,brand:pr.brand||'',leadName,camps:curPreset?camps:null,nv:pr.staff.length,doanhSo,dtDuKien,chiPhi,gttb,closed,adsDS,hoan,denom,empty,sortv:doanhSo+(chiPhi||0)};
   }).sort((a,b)=>a.empty-b.empty || b.sortv-a.sortv);
 
   const adsCol=v=>v==null?C.muted:(v<45?C.green:v<=70?C.amber:C.red);
