@@ -120,6 +120,10 @@
   .smbox{background:#fff;border-radius:15px;max-width:760px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);position:relative}
   .smx{position:absolute;top:14px;right:14px;border:none;background:#f1efe8;border-radius:9px;width:32px;height:32px;font-size:16px;cursor:pointer;color:var(--muted)}
   .team-box{max-width:1120px}
+  th.sortable{cursor:pointer;user-select:none;white-space:nowrap}
+  th.sortable:hover{color:var(--blue)}
+  th .sarr{font-size:9px;margin-left:3px;opacity:.45}
+  th.sort-active{color:var(--blue)} th.sort-active .sarr{opacity:1;color:var(--blue)}
   .proj{cursor:pointer;transition:box-shadow .15s,transform .15s}
   .proj:hover{box-shadow:0 6px 18px rgba(31,95,176,.16);transform:translateY(-1px)}
   .proj::after{content:'Xem chi tiết →';position:absolute;right:14px;bottom:12px;font-size:10.5px;font-weight:800;color:var(--blue);opacity:0;transition:opacity .15s}
@@ -608,6 +612,40 @@ function render(from,to){
 // VND gọn: 1.2tr · 512k · 900đ
 function vndC(v){ v=Math.round(v||0); if(Math.abs(v)>=1e6)return (v/1e6).toFixed(v/1e6>=10?0:1).replace(/\.0$/,'')+'tr'; if(Math.abs(v)>=1e3)return Math.round(v/1e3)+'k'; return v+'đ'; }
 
+// ── SẮP XẾP BẢNG (click tiêu đề cột, tăng/giảm) ──
+function cellNum(td){
+  const raw=td.getAttribute('data-v'); if(raw!=null&&raw!==''){ const n=parseFloat(raw); return isNaN(n)?NaN:n; }
+  let t=td.textContent.trim().replace(/[₫đ%~*\s▲▼⇅]/g,'');
+  if(t===''||t==='—') return NaN;
+  if(t.indexOf(',')>=0){ t=t.replace(/\./g,'').replace(',','.'); }            // vi-VN: . nghìn, , thập phân
+  else { const p=t.split('.'); if(p.length>2) t=p.join(''); else if(p.length===2&&p[1].length===3) t=p.join(''); }  // 697.455 -> 697455 (giữ 21.9)
+  const n=parseFloat(t); return isNaN(n)?NaN:n;
+}
+function makeSortable(sel){
+  const table=document.querySelector(sel); if(!table) return;
+  const ths=[...table.querySelectorAll('thead th')];
+  ths.forEach((th,ci)=>{
+    if(!th.textContent.trim()) return;
+    th.classList.add('sortable');
+    if(!th.querySelector('.sarr')){ const s=document.createElement('span'); s.className='sarr'; s.textContent='⇅'; th.appendChild(s); }
+    th.addEventListener('click',()=>{
+      const dir=(table.__sc===ci && table.__sd==='asc')?'desc':'asc'; table.__sc=ci; table.__sd=dir;
+      const tb=table.querySelector('tbody'); if(!tb) return;
+      const rows=[...tb.children];
+      const pin=r=>/TỔNG|SP khác/i.test(r.textContent)||r.querySelector('.empty');
+      const data=rows.filter(r=>!pin(r)), pinned=rows.filter(pin);
+      let num=0,cnt=0; for(const r of data){ const c=r.children[ci]; if(!c)continue; cnt++; if(!isNaN(cellNum(c)))num++; }
+      const isNum=cnt>0&&num>=cnt/2;
+      data.sort((a,b)=>{ const x=a.children[ci], y=b.children[ci]; if(!x||!y)return 0;
+        if(isNum){ let va=cellNum(x),vb=cellNum(y); if(isNaN(va))va=-Infinity; if(isNaN(vb))vb=-Infinity; return dir==='asc'?va-vb:vb-va; }
+        return dir==='asc'?x.textContent.localeCompare(y.textContent,'vi'):y.textContent.localeCompare(x.textContent,'vi'); });
+      data.forEach(r=>tb.appendChild(r)); pinned.forEach(r=>tb.appendChild(r));
+      ths.forEach(h=>{ const a=h.querySelector('.sarr'); if(a)a.textContent='⇅'; h.classList.remove('sort-active'); });
+      const a=th.querySelector('.sarr'); if(a)a.textContent=dir==='asc'?'▲':'▼'; th.classList.add('sort-active');
+    });
+  });
+}
+
 // CẤU HÌNH DỰ ÁN = đội NV (mã NV trùng ID sale POS + ID trong tên camp Meta). Sửa ở đây khi có đội mới.
 const PROJECTS = {
   th:[
@@ -965,6 +1003,8 @@ document.getElementById('settingsModal').addEventListener('click',e=>{ if(e.targ
 document.getElementById('projGrid').addEventListener('click',e=>{ const c=e.target.closest('.proj'); if(c&&c.dataset.code) openTeam(c.dataset.code); });
 document.getElementById('tmxClose').addEventListener('click',()=>{ document.getElementById('teamModal').style.display='none'; });
 document.getElementById('teamModal').addEventListener('click',e=>{ if(e.target.id==='teamModal') e.currentTarget.style.display='none'; });
+// Sắp xếp cột (click tiêu đề) cho các bảng
+['#tblPage','#tblSale','#tblMeta','#teamStaffTbl'].forEach(makeSortable);
 renderTagMapUI();
 
 // ---- TỰ CẬP NHẬT mỗi 5 phút (nạp lại data.js, không reload trang) ----
