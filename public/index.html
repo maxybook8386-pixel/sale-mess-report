@@ -219,7 +219,7 @@
       <table id="tblSale">
         <thead><tr>
           <th>Nhân viên</th><th>Số đơn</th><th>Đơn chốt</th><th>Tỉ lệ chốt/đơn</th>
-          <th>Đã giao</th><th>Hoàn</th><th>Doanh thu</th>
+          <th>Đã giao</th><th>Hoàn</th><th>Tỉ lệ hoàn</th><th>Doanh thu</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -233,7 +233,7 @@
       <table id="tblMeta">
         <thead><tr>
           <th>Mã SP</th><th>Cuốn</th><th>💬 Mess</th><th>Số đơn</th><th>Đơn chốt</th>
-          <th>Tỉ lệ chốt</th><th>Chi phí ads (IB)</th><th>Cost/mess</th>
+          <th>Tỉ lệ chốt</th><th>Tỉ lệ hoàn</th><th>Chi phí ads (IB)</th><th>Cost/mess</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -461,15 +461,30 @@ function aggregate(from,to){
   // incomplete = kỳ bắt đầu trước ngày sớm nhất có KH tương tác
   const incomplete = m.interaction_from ? (f < m.interaction_from) : true;
 
+  // ==== TỈ LỆ HOÀN: cửa sổ CỐ ĐỊNH [today-40, today-10] (30 ngày lùi 10), theo đơn ĐÃ GỬI ĐI (FB) ====
+  // hoàn = (đã hoàn + đang hoàn + treo 'đã gửi' >10 ngày) ÷ (tổng đã gửi đi = delivered+shipped+returned+returning)
+  const _rEnd=addDays(T,-10), _rStart=addDays(_rEnd,-30), rwF=fmt(_rStart), rwT=fmt(_rEnd);
+  const retWin={from:rwF,to:rwT,tot:{deliv:0,shipped:0,ret:0},byPage:{},bySale:{},byCode:{},byStaff:{}};
+  const _bump=(o,k)=>{ retWin.tot[k]++;
+    (retWin.byPage[o.pid]=retWin.byPage[o.pid]||{deliv:0,shipped:0,ret:0})[k]++;
+    (retWin.bySale[o.sale]=retWin.bySale[o.sale]||{deliv:0,shipped:0,ret:0})[k]++;
+    if(o.mcode)(retWin.byCode[o.mcode]=retWin.byCode[o.mcode]||{deliv:0,shipped:0,ret:0})[k]++;
+    const sid=(String(o.sale).match(/^(\d+)/)||[])[1]; if(sid)(retWin.byStaff[sid]=retWin.byStaff[sid]||{deliv:0,shipped:0,ret:0})[k]++; };
+  for(const o of m.orders){ if(o.d<rwF||o.d>rwT) continue;
+    if(o.st==='delivered')_bump(o,'deliv'); else if(o.st==='shipped')_bump(o,'shipped'); else if(o.st==='returned'||o.st==='returning')_bump(o,'ret'); }
+
   return {from:f,to:t,
     pages:Object.values(pages).filter(p=>p.orders>0||p.interactions>0),
     sales:Object.values(sales).sort((a,b)=>b.orders-a.orders),
     prods:Object.values(prods).sort((a,b)=>b.orders-a.orders),
-    byCode, codePage,
+    byCode, codePage, retWin,
     status:Object.entries(statusCount).map(([code,count])=>({code,label:(m.status_labels[code]||code),count})).sort((a,b)=>b.count-a.count),
     daily:Object.values(dayMap).sort((a,b)=>a.date<b.date?-1:1),
     tot:T_, incomplete};
 }
+// tỉ lệ hoàn từ 1 cụm {deliv,shipped,ret}: num=shipped+ret, den=deliv+shipped+ret
+function hoanOf(w){ if(!w) return {num:0,den:0,rate:null}; const num=(w.shipped||0)+(w.ret||0), den=(w.deliv||0)+(w.shipped||0)+(w.ret||0); return {num,den,rate:den?num/den*100:null}; }
+function hoanSum(list){ const s={deliv:0,shipped:0,ret:0}; for(const w of list){ if(!w)continue; s.deliv+=w.deliv||0; s.shipped+=w.shipped||0; s.ret+=w.ret||0; } return s; }
 
 // KH tương tác theo SP = tổng hội thoại-tag (đã map sang mã SP) trong kỳ
 function computeSpInt(from,to){
@@ -503,14 +518,9 @@ function render(from,to){
     (single? viDate(from) : `${viDate(from)} → ${viDate(to)}`) + ` · cập nhật ${D.generated_at}`;
 
   const closeRate = A.incomplete ? null : pct(A.tot.closed, A.tot.interactions);
-  // ==== Tỉ lệ hoàn tính từ đơn FB THÁNG TRƯỚC (đơn kỳ này còn mới, chưa kịp hoàn) ====
-  const _td = parseD(D.today);
-  const _endD = new Date(_td.getTime() - 10*86400000);      // lùi 10 ngày từ hôm nay
-  const _startD = new Date(_endD.getTime() - 30*86400000);  // 30 ngày trước mốc đó
-  const _lmS = fmt(_startD), _lmE = fmt(_endD);
-  let _del=0, _ret=0;
-  for(const o of m.orders){ if(o.d>=_lmS && o.d<=_lmE){ if(o.st==='delivered')_del++; else if(o.st==='returned'||o.st==='returning')_ret++; } }
-  const _lmN=_del+_ret, retRate=pct(_ret,_lmN);
+  // ==== Tỉ lệ hoàn: cửa sổ cố định [today-40, today-10], theo đơn ĐÃ GỬI ĐI (retWin trong aggregate) ====
+  const _H = hoanOf(A.retWin.tot);
+  const _lmS = A.retWin.from, _lmE = A.retWin.to, _lmN = _H.den, retRate = _H.rate!=null ? _H.rate : 0;
   const _dmm = s => { const p=s.split('-'); return (+p[2])+'/'+(+p[1]); };
   const aov = A.tot.closed>0 ? A.tot.revenue/A.tot.closed : 0;         // TB đơn (doanh số ÷ đơn chốt)
   const doanhThuNet = A.tot.revenue * (1 - (retRate||0)/100);           // doanh thu = doanh số × (1 − hoàn)
@@ -539,7 +549,7 @@ function render(from,to){
     {lbl:'Doanh thu đơn TC',val:vnd(A.tot.delivRev),sub:`${fmtN(A.tot.delivered)} đơn đã giao · thực thu`,money:true},
     {lbl:'Ads / DT',val:adsDT===null?'—':adsDT.toFixed(1)+'%',sub:adsSpend===null?'chọn kỳ để xem':`chi ads ${fmtN(adsSpend)}đ ÷ doanh số`,
       color:adsDT===null?C.muted:(adsDT<45?C.green:adsDT<=55?C.amber:C.red)},
-    {lbl:'Tỉ lệ hoàn',val:_lmN?retRate.toFixed(1)+'%':'—',sub:`đơn FB ${_dmm(_lmS)}–${_dmm(_lmE)} · ${fmtN(_ret)}/${fmtN(_lmN)}`,
+    {lbl:'Tỉ lệ hoàn',val:_lmN?retRate.toFixed(1)+'%':'—',sub:`đơn gửi ${_dmm(_lmS)}–${_dmm(_lmE)} · ${fmtN(_H.num)}/${fmtN(_lmN)}`,
       color:retRate>15?C.red:C.green},
     {lbl:'Đã giao TC',val:fmtN(A.tot.delivered),sub:`${fmtN(A.tot.canceled)} đơn hủy`},
   ];
@@ -573,7 +583,7 @@ function render(from,to){
   if(!pages.length){ tb.innerHTML=`<tr><td colspan="11" class="empty">Không có đơn Facebook trong kỳ này</td></tr>`; document.querySelector('#tblPage tfoot').innerHTML=''; }
   else{
     tb.innerHTML=pages.map(p=>{
-      const cr=pct(p.closed,p.interactions), rr=pct(p.returned,p.delivered+p.returned);
+      const cr=pct(p.closed,p.interactions), H=hoanOf(A.retWin.byPage[p.id]), rr=H.rate;
       const crCell = (A.incomplete||!p.interactions)?'<span class="pill n">—</span>':`<span class="pill ${cr>=15?'g':cr>=8?'a':'r'}">${cr.toFixed(1)}%</span>`;
       return `<tr>
         <td class="pg">${p.name}</td>
@@ -581,9 +591,9 @@ function render(from,to){
         <td class="num">${fmtN(p.orders)}</td>
         <td class="num">${fmtN(p.closed)}</td>
         <td>${crCell}</td>
-        <td class="num">${fmtN(p.delivered)}</td>
-        <td class="num">${fmtN(p.returned)}</td>
-        <td>${(p.delivered+p.returned)?`<span class="pill ${rr>15?'r':'g'}">${rr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
+        <td class="num">${fmtN(H.den-H.num)}</td>
+        <td class="num">${fmtN(H.num)}</td>
+        <td>${H.rate!=null?`<span class="pill ${rr>15?'r':'g'}">${rr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
         ${adsCell(hasAds?(pageAds[p.id]||0):null, p.revenue)}
         <td class="num">${vnd(p.revenue)}<div class="bar" style="width:${Math.max(6,100*p.revenue/maxRev)}%"></div></td>
       </tr>`;}).join('');
@@ -591,8 +601,8 @@ function render(from,to){
     document.querySelector('#tblPage tfoot').innerHTML=`<tr style="font-weight:800;background:var(--sky)">
       <td>TỔNG</td><td class="num">${A.incomplete?'~':''}${fmtN(A.tot.interactions)}</td><td class="num">${fmtN(A.tot.orders)}</td>
       <td class="num">${fmtN(A.tot.closed)}</td><td>${closeRate===null?'<span class="pill n">—</span>':`<span class="pill ${closeRate>=15?'g':closeRate>=8?'a':'r'}">${closeRate.toFixed(1)}%</span>`}</td>
-      <td class="num">${fmtN(A.tot.delivered)}</td><td class="num">${fmtN(A.tot.returned)}</td>
-      <td>${(A.tot.delivered+A.tot.returned)?`<span class="pill ${retRate>15?'r':'g'}">${retRate.toFixed(1)}%</span>`:'—'}</td>
+      <td class="num">${fmtN(_H.den-_H.num)}</td><td class="num">${fmtN(_H.num)}</td>
+      <td>${_H.rate!=null?`<span class="pill ${retRate>15?'r':'g'}">${retRate.toFixed(1)}%</span>`:'—'}</td>
       ${adsCell(totAds, A.tot.revenue)}
       <td class="num">${vnd(A.tot.revenue)}</td></tr>`;
   }
@@ -600,13 +610,14 @@ function render(from,to){
   // bảng sale
   const sb=document.querySelector('#tblSale tbody');
   sb.innerHTML = A.sales.length ? A.sales.map(s=>{
-    const cr=pct(s.closed,s.orders);
+    const cr=pct(s.closed,s.orders), H=hoanOf(A.retWin.bySale[s.name]);
     return `<tr><td class="pg">${cleanSale(s.name)}</td>
       <td class="num">${fmtN(s.orders)}</td><td class="num">${fmtN(s.closed)}</td>
       <td><span class="pill ${cr>=70?'g':cr>=50?'a':'r'}">${s.orders?cr.toFixed(1)+'%':'—'}</span></td>
-      <td class="num">${fmtN(s.delivered)}</td><td class="num">${fmtN(s.returned)}</td>
+      <td class="num">${fmtN(H.den-H.num)}</td><td class="num">${fmtN(H.num)}</td>
+      <td>${H.rate!=null?`<span class="pill ${H.rate>15?'r':'g'}">${H.rate.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
       <td class="num">${vnd(s.revenue)}</td></tr>`;}).join('')
-    : `<tr><td colspan="7" class="empty">Không có dữ liệu</td></tr>`;
+    : `<tr><td colspan="8" class="empty">Không có dữ liệu</td></tr>`;
 
   renderMeta(A);
   renderProjects(A);
@@ -614,7 +625,7 @@ function render(from,to){
 
   document.getElementById('foot').innerHTML=
     `Nguồn: Pancake POS (đơn) + Pancake Inbox/pages.fm (KH tương tác). · Dữ liệu 45 ngày, lọc theo kỳ tại trình duyệt.<br>
-     Cập nhật số mới: chạy <code>refresh.ps1</code> rồi deploy lại. <b>Tỉ lệ chốt</b> = Số đơn ÷ KH mới tương tác · <b>Tỉ lệ hoàn</b> = Hoàn ÷ (Đã giao + Hoàn).`;
+     Cập nhật số mới: chạy <code>refresh.ps1</code> rồi deploy lại. <b>Tỉ lệ chốt</b> = Số đơn ÷ KH mới tương tác · <b>Tỉ lệ hoàn</b> = (đã hoàn + đang hoàn + treo "đã gửi" >10 ngày) ÷ tổng đơn đã gửi đi, tính trên đơn FB gửi trong cửa sổ <b>${_lmS?_dmm(_lmS)+'–'+_dmm(_lmE):'40–10 ngày trước'}</b> (30 ngày, lùi 10).`;
 }
 
 // VND gọn: 1.2tr · 512k · 900đ
@@ -751,7 +762,7 @@ function openTeam(code){
         <div class="proj-sub" style="margin:2px 0 0">Leader: <b>${leadName}</b> · ${pr.staff.length} NV · ${per}</div>
       </div></div>`;
   const doanhSo=T.rev*RV, chiPhi=curPreset?T.spend:null;
-  const denom=T.deliv+T.ret, hoan=denom?T.ret/denom*100:0;
+  const Ht=hoanOf(hoanSum(pr.staff.map(id=>curA&&curA.retWin&&curA.retWin.byStaff[id]))); const denom=Ht.den, hoan=Ht.rate!=null?Ht.rate:0;
   const tlChot=T.mess>0?T.closed/T.mess*100:(T.orders>0?T.closed/T.orders*100:null);
   const tlLbl=T.mess>0?'đơn chốt ÷ mess':'đơn chốt ÷ SĐT';
   const adsDS=(chiPhi!=null&&doanhSo>0)?chiPhi/doanhSo*100:null;
@@ -763,26 +774,26 @@ function openTeam(code){
     {lbl:'Doanh thu đơn TC',val:vnd(T.delivRev),money:true,sub:`${fmtN(T.deliv)} đơn giao`},
     {lbl:'Chi phí IB',val:chiPhi==null?'—':vnd(T.spend),money:true,sub:curPreset?fmtN(T.camps)+' camps':'chọn kỳ'},
     {lbl:'ADS / DS',val:adsDS==null?'—':adsDS.toFixed(1)+'%',sub:'chi phí ÷ doanh số',color:adsDS==null?C.muted:(adsDS<45?C.green:adsDS<=70?C.amber:C.red)},
-    {lbl:'Tỉ lệ hoàn',val:denom?hoan.toFixed(1)+'%':'—',sub:`${fmtN(T.ret)}/${fmtN(denom)} đơn`,color:hoan>15?C.red:C.green},
+    {lbl:'Tỉ lệ hoàn',val:denom?hoan.toFixed(1)+'%':'—',sub:`${fmtN(Ht.num)}/${fmtN(denom)} đơn gửi`,color:hoan>15?C.red:C.green},
     {lbl:'Đã giao TC',val:fmtN(T.deliv),sub:'đơn giao thành công'},
   ];
   document.getElementById('teamKpis').innerHTML=K.map(k=>`<div class="kpi"><div class="k-lbl">${k.lbl}</div><div class="k-val" style="${k.color?`color:${k.color};`:''}${k.money?'font-size:17px;':''}">${k.val}</div><div class="k-sub">${k.sub}</div></div>`).join('');
   const tb=document.querySelector('#teamStaffTbl tbody');
   tb.innerHTML=rows.map(r=>{
-    const cr=r.orders?r.closed/r.orders*100:0, dn=r.deliv+r.ret, rr=dn?r.ret/dn*100:0, ds=r.rev*RV, ads=ds>0?r.spend/ds*100:null;
+    const cr=r.orders?r.closed/r.orders*100:0, Hs=hoanOf(curA&&curA.retWin&&curA.retWin.byStaff[r.id]), rr=Hs.rate, ds=r.rev*RV, ads=ds>0?r.spend/ds*100:null;
     return `<tr><td class="pg">${r.name}</td>
       <td class="num">${fmtN(r.orders)}</td><td class="num">${fmtN(r.closed)}</td>
       <td>${r.orders?`<span class="pill ${cr>=50?'g':cr>=30?'a':'r'}">${cr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
       <td class="num">${vnd(r.rev)}</td>
-      <td class="num">${fmtN(r.deliv)}</td><td class="num">${fmtN(r.ret)}</td>
-      <td>${dn?`<span class="pill ${rr>15?'r':'g'}">${rr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
+      <td class="num">${fmtN(Hs.den-Hs.num)}</td><td class="num">${fmtN(Hs.num)}</td>
+      <td>${Hs.rate!=null?`<span class="pill ${rr>15?'r':'g'}">${rr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
       <td class="num">${curPreset?vnd(r.spend):'—'}</td>
       <td class="num" style="color:${ads==null?'var(--muted)':(ads<45?C.green:ads<=70?C.amber:C.red)}">${ads==null?'—':ads.toFixed(1)+'%'}</td></tr>`;
   }).join('')||`<tr><td colspan="10" class="empty">Chưa có dữ liệu</td></tr>`;
   document.querySelector('#teamStaffTbl tfoot').innerHTML=`<tr style="font-weight:800;background:var(--sky)">
     <td>TỔNG ĐỘI</td><td class="num">${fmtN(T.orders)}</td><td class="num">${fmtN(T.closed)}</td>
     <td>${tlChot==null?'—':tlChot.toFixed(1)+'%'}</td><td class="num">${vnd(T.rev)}</td>
-    <td class="num">${fmtN(T.deliv)}</td><td class="num">${fmtN(T.ret)}</td>
+    <td class="num">${fmtN(Ht.den-Ht.num)}</td><td class="num">${fmtN(Ht.num)}</td>
     <td>${denom?hoan.toFixed(1)+'%':'—'}</td><td class="num">${curPreset?vnd(T.spend):'—'}</td>
     <td class="num">${adsDS==null?'—':adsDS.toFixed(1)+'%'}</td></tr>`;
   document.getElementById('teamModal').style.display='flex';
@@ -791,8 +802,8 @@ function openTeam(code){
 function renderMeta(A){
   const tag=document.getElementById('metaTag'), note=document.getElementById('metaNote'), tb=document.querySelector('#tblMeta tbody');
   const lbl={today:'Hôm nay',yesterday:'Hôm qua',this_month:'Tháng này',last_month:'Tháng trước'};
-  if(!hasMeta()){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="8" class="empty">—</td></tr>'; return; }
-  if(!curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Mess Meta chỉ có theo 4 kỳ nút. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem mess theo SP.'; tb.innerHTML='<tr><td colspan="8" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
+  if(!hasMeta()){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="9" class="empty">—</td></tr>'; return; }
+  if(!curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Mess Meta chỉ có theo 4 kỳ nút. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem mess theo SP.'; tb.innerHTML='<tr><td colspan="9" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
   const _sp=mktSp();
   tag.textContent='kỳ: '+(lbl[curPreset]||curPreset);
   note.innerHTML='<b>Mess = hội thoại từ quảng cáo IB</b> (Meta messaging, theo mã SP), <b>lọc theo đúng thị trường</b>. Chi phí = camp IB. Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng lại = <b>TỔNG</b>. · TT chỉ chạy CD (vd Indo) sẽ trống.';
@@ -809,15 +820,18 @@ function renderMeta(A){
   const otherO=Math.max(0,A.tot.orders-sumO), otherC=Math.max(0,A.tot.closed-sumC);
   const body=rows.map(r=>{
     const cr=pct(r.closed,r.mess), cpm=r.mess>0?r.spend/r.mess:0, prio=PRIO.includes(r.code);
+    const Hc=hoanOf(A.retWin.byCode[r.code]);
     return `<tr style="${prio?'background:#fffdf0':''}">
       <td class="pg">${r.code}${prio?' ⭐':''}</td><td>${r.name||'—'}</td>
       <td class="num"><b>${fmtN(r.mess)}</b></td><td class="num">${fmtN(r.orders)}</td><td class="num">${fmtN(r.closed)}</td>
       <td><span class="pill ${cr>=30?'g':cr>=15?'a':'r'}">${r.mess?cr.toFixed(1)+'%':'—'}</span></td>
+      <td>${Hc.rate!=null?`<span class="pill ${Hc.rate>15?'r':'g'}">${Hc.rate.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
       <td class="num">${r.spend?fmtN(r.spend)+'₫':'—'}</td>
       <td class="num">${cpm?fmtN(cpm)+'₫':'—'}</td></tr>`;}).join('');
-  const otherRow=(otherO>0||otherC>0)?`<tr><td class="pg" style="color:var(--muted)">—</td><td style="color:var(--muted)">SP khác (không chạy Meta)</td><td class="num">—</td><td class="num">${fmtN(otherO)}</td><td class="num">${fmtN(otherC)}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>`:'';
-  const totalRow=`<tr style="font-weight:800;background:var(--sky)"><td>TỔNG</td><td></td><td class="num">${fmtN(sumMess)}</td><td class="num">${fmtN(A.tot.orders)}</td><td class="num">${fmtN(A.tot.closed)}</td><td></td><td class="num">${sumSpend?fmtN(sumSpend)+'₫':'—'}</td><td></td></tr>`;
-  tb.innerHTML = (rows.length||otherO||otherC) ? (body+otherRow+totalRow) : '<tr><td colspan="8" class="empty">Không có mess/đơn trong kỳ</td></tr>';
+  const _Hsp=hoanOf(A.retWin.tot);
+  const otherRow=(otherO>0||otherC>0)?`<tr><td class="pg" style="color:var(--muted)">—</td><td style="color:var(--muted)">SP khác (không chạy Meta)</td><td class="num">—</td><td class="num">${fmtN(otherO)}</td><td class="num">${fmtN(otherC)}</td><td class="num">—</td><td class="num">—</td><td class="num">—</td><td class="num">—</td></tr>`:'';
+  const totalRow=`<tr style="font-weight:800;background:var(--sky)"><td>TỔNG</td><td></td><td class="num">${fmtN(sumMess)}</td><td class="num">${fmtN(A.tot.orders)}</td><td class="num">${fmtN(A.tot.closed)}</td><td></td><td>${_Hsp.rate!=null?_Hsp.rate.toFixed(1)+'%':'—'}</td><td class="num">${sumSpend?fmtN(sumSpend)+'₫':'—'}</td><td></td></tr>`;
+  tb.innerHTML = (rows.length||otherO||otherC) ? (body+otherRow+totalRow) : '<tr><td colspan="9" class="empty">Không có mess/đơn trong kỳ</td></tr>';
 }
 
 let spDrawn=false, spChs={};
