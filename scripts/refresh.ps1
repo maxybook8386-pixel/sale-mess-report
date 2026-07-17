@@ -72,7 +72,7 @@ foreach ($m in $markets) {
     if (-not $pagesMeta.ContainsKey($pgid)) { $pagesMeta[$pgid] = $pname }
     $rev = [double]$o.total_price / $m.div
     if ($rev -le 0) { $rev = [double]$o.cod / $m.div }
-    $sale = if ($o.marketer -and $o.marketer.name) { $o.marketer.name } else { '(Chưa gán sale)' }
+    $sale = if ($o.marketer -and $o.marketer.name) { $o.marketer.name } else { '(Chưa gán MKT)' }
     $statusSeen[$sn] = $true
     # SP CHÍNH = cuốn được add ĐẦU TIÊN vào đơn (bỏ quà tặng); các cuốn sau là bán kèm, không tính
     $main = ''; $mainq = 0; $maincode = ''
