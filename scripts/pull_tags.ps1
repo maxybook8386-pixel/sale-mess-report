@@ -11,8 +11,19 @@ $fromDate = (Get-Date).Date.AddDays(-$Days)
 $tagInt = @{}      # tagId -> @{ date -> count }
 $tagSample = @{}   # tagId -> snippet mau
 $tagTotal = @{}    # tagId -> tong
+$spInt = @{}       # MÃ SP (tên thẻ) -> @{ date -> count }  (TỰ ĐỘNG: đọc tên thẻ từ settings)
+$jsonHdr = @{ Accept = 'application/json' }
 
 foreach ($pgid in $pages) {
+  # Bản đồ id thẻ -> mã SP theo TÊN thẻ (settings), để gom mess tự động không cần gán tay
+  $id2sp = @{}
+  try {
+    $st = Invoke-RestMethod -Uri "https://pages.fm/api/v1/pages/$pgid/settings?access_token=$TOKEN" -Headers $jsonHdr -TimeoutSec 40
+    foreach ($tg in @($st.settings.tags)) {
+      $txt = ("" + $tg.text).Trim()
+      if ($txt -match '^[A-Za-z]\d{2,3}$') { $id2sp["" + $tg.id] = $txt.ToUpper() }
+    }
+  } catch {}
   $last = $null; $guard = 0; $seen = @{}
   while ($guard -lt 60) {
     $guard++
@@ -45,6 +56,13 @@ foreach ($pgid in $pages) {
           $sn = "" + $c.snippet; if ($sn.Length -gt 45) { $sn = $sn.Substring(0,45) }
           $tagSample[$k] = $sn
         }
+        # TỰ ĐỘNG: nếu thẻ tên = mã SP -> gom vào sp_int theo SP
+        if ($id2sp.ContainsKey($k)) {
+          $sp = $id2sp[$k]
+          if (-not $spInt.ContainsKey($sp)) { $spInt[$sp] = @{} }
+          if (-not $spInt[$sp].ContainsKey($dk)) { $spInt[$sp][$dk] = 0 }
+          $spInt[$sp][$dk]++
+        }
       }
     }
     if ($newInPage -eq 0) { break }   # het trang moi -> dung
@@ -67,6 +85,12 @@ if (Test-Path $oldPath) {
       }
     }
     foreach ($sp2 in $old.tag_sample.PSObject.Properties) { if (-not $tagSample.ContainsKey($sp2.Name)) { $tagSample[$sp2.Name] = $sp2.Value } }
+    if ($old.sp_int) {
+      foreach ($sp3 in $old.sp_int.PSObject.Properties) {
+        $k = $sp3.Name; if (-not $spInt.ContainsKey($k)) { $spInt[$k] = @{} }
+        foreach ($dp in $sp3.Value.PSObject.Properties) { if (-not $spInt[$k].ContainsKey($dp.Name)) { $spInt[$k][$dp.Name] = [int]$dp.Value } }
+      }
+    }
   } catch {}
 }
 $tagTotal = @{}
@@ -77,6 +101,7 @@ $out = [ordered]@{
   tag_int    = $tagInt
   tag_sample = $tagSample
   tag_total  = $tagTotal
+  sp_int     = $spInt
 }
 $json = $out | ConvertTo-Json -Depth 6
 [System.IO.File]::WriteAllText((Join-Path $dir 'tags.js'), "window.TAGINT_DATA = $json;", (New-Object System.Text.UTF8Encoding $false))

@@ -473,10 +473,17 @@ function aggregate(from,to){
 
 // KH tương tác theo SP = tổng hội thoại-tag (đã map sang mã SP) trong kỳ
 function computeSpInt(from,to){
-  const res={}, ti=(TAGINT&&TAGINT.tag_int)||{}, f=fmt(from), t=fmt(to);
+  const f=fmt(from), t=fmt(to), res={};
+  // ƯU TIÊN: sp_int — TỰ ĐỘNG gom theo TÊN THẺ (thẻ đặt tên = mã SP), khỏi gán tay
+  const si=(TAGINT&&TAGINT.sp_int);
+  if(si && Object.keys(si).length){
+    for(const sp in si){ const days=si[sp]||{}; let s=0; for(const dk in days){ if(dk>=f&&dk<=t) s+=(+days[dk]||0); } if(s) res[sp]=(res[sp]||0)+s; }
+    return res;
+  }
+  // Fallback: TAGMAP gán tay (khi chưa có sp_int)
+  const ti=(TAGINT&&TAGINT.tag_int)||{};
   for(const tid in TAGMAP){ const sp=TAGMAP[tid]; if(!sp) continue;
-    const days=ti[tid]||{}; let s=0;
-    for(const dk in days){ if(dk>=f && dk<=t) s+=(+days[dk]||0); }
+    const days=ti[tid]||{}; let s=0; for(const dk in days){ if(dk>=f && dk<=t) s+=(+days[dk]||0); }
     res[sp]=(res[sp]||0)+s;
   }
   return res;
@@ -786,9 +793,9 @@ function renderMeta(A){
   const lbl={today:'Hôm nay',yesterday:'Hôm qua',this_month:'Tháng này',last_month:'Tháng trước'};
   const _sp=mktSp();                          // Meta (cho CHI PHÍ IB)
   const spInt=A.spInt||{};                     // MESS = KH tương tác theo THẺ SP (phủ mọi nguồn, không chỉ ads)
-  const hasTag=Object.keys(TAGMAP||{}).some(k=>TAGMAP[k]);
+  const autoSp=!!(TAGINT&&TAGINT.sp_int&&Object.keys(TAGINT.sp_int).length);
   tag.textContent = curPreset?('kỳ: '+(lbl[curPreset]||curPreset)):('kỳ: '+(curFrom?viDate(curFrom)+'–'+viDate(curTo):'—'));
-  note.innerHTML='<b>Mess = KH tương tác theo THẺ SP</b> (thẻ sếp gắn ở Pancake — phủ mọi nguồn, không chỉ ads). Chi phí = camp IB (Meta, chỉ có theo 4 kỳ nút). Tỉ lệ chốt = đơn chốt ÷ mess-thẻ. · Dòng <b>SP khác</b> = đơn của SP chưa gắn thẻ → cộng lại = đúng <b>TỔNG</b>.'+(hasTag?'':' · <b style="color:#c0392b">⚠️ Chưa cấu hình thẻ→SP</b> (bấm ⚙️ Cấu hình thẻ SP ở menu trái).');
+  note.innerHTML='<b>Mess = KH tương tác theo THẺ SP</b> — '+(autoSp?'<b style="color:var(--green)">TỰ ĐỘNG</b> đọc tên thẻ sếp gắn ở Pancake (thẻ tên = mã SP), khỏi gán tay':'gán thẻ→SP ở ⚙️ Cấu hình')+'. Chi phí = camp IB (Meta, chỉ có theo 4 kỳ nút). Tỉ lệ chốt = đơn chốt ÷ mess-thẻ. · Dòng <b>SP khác</b> = đơn của SP chưa có thẻ → cộng lại = <b>TỔNG</b>.';
   // tên cuốn theo mã SP (từ đơn)
   const c2n={}; for(const p of (A.prods||[])){ if(p.code&&p.name&&!c2n[p.code]) c2n[p.code]=p.name; }
   const codes=new Set([...Object.keys(spInt),...Object.keys(A.byCode||{})]);
