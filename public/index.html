@@ -464,14 +464,19 @@ function aggregate(from,to){
   // ==== TỈ LỆ HOÀN: cửa sổ CỐ ĐỊNH [today-40, today-10] (30 ngày lùi 10), theo đơn ĐÃ GỬI ĐI (FB) ====
   // hoàn = (đã hoàn + đang hoàn + treo 'đã gửi' >10 ngày) ÷ (tổng đã gửi đi = delivered+shipped+returned+returning)
   const _rEnd=addDays(T,-10), _rStart=addDays(_rEnd,-30), rwF=fmt(_rStart), rwT=fmt(_rEnd);
-  const retWin={from:rwF,to:rwT,tot:{deliv:0,shipped:0,ret:0},byPage:{},bySale:{},byCode:{},byStaff:{}};
+  const retWin={from:rwF,to:rwT,bySd:false,tot:{deliv:0,shipped:0,ret:0},byPage:{},bySale:{},byCode:{},byStaff:{}};
   const _bump=(o,k)=>{ retWin.tot[k]++;
     (retWin.byPage[o.pid]=retWin.byPage[o.pid]||{deliv:0,shipped:0,ret:0})[k]++;
     (retWin.bySale[o.sale]=retWin.bySale[o.sale]||{deliv:0,shipped:0,ret:0})[k]++;
     if(o.mcode)(retWin.byCode[o.mcode]=retWin.byCode[o.mcode]||{deliv:0,shipped:0,ret:0})[k]++;
     const sid=(String(o.sale).match(/^(\d+)/)||[])[1]; if(sid)(retWin.byStaff[sid]=retWin.byStaff[sid]||{deliv:0,shipped:0,ret:0})[k]++; };
-  for(const o of m.orders){ if(o.d<rwF||o.d>rwT) continue;
-    if(o.st==='delivered')_bump(o,'deliv'); else if(o.st==='shipped')_bump(o,'shipped'); else if(o.st==='returned'||o.st==='returning')_bump(o,'ret'); }
+  // lọc theo NGÀY GỬI HÀNG (sd) — giống Pancake "Cập nhật trạng thái: Đã gửi hàng". Fallback ngày tạo nếu data cũ chưa có sd.
+  const _useSd = m.orders.some(o=>o.sd);  retWin.bySd=_useSd;
+  for(const o of m.orders){ const wd=_useSd?o.sd:o.d; if(!wd||wd<rwF||wd>rwT) continue;
+    if(o.st==='shipped')_bump(o,'shipped');
+    else if(o.st==='returned'||o.st==='returning')_bump(o,'ret');
+    else if(o.st==='delivered')_bump(o,'deliv');
+    else if(_useSd)_bump(o,'deliv'); }   // sd tồn tại = đã gửi đi → vào mẫu số dù status khác
 
   return {from:f,to:t,
     pages:Object.values(pages).filter(p=>p.orders>0||p.interactions>0),

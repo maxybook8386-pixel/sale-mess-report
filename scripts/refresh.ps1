@@ -84,8 +84,15 @@ foreach ($m in $markets) {
       if ($it.variation_info -and $it.variation_info.product_display_id) { $maincode = ("" + $it.variation_info.product_display_id).Trim() }
       break
     }
+    # NGÀY GỬI HÀNG (sd) = lần đổi trạng thái sang "Đã gửi hàng" (status code 2) trong status_history.
+    # Dùng cho TỈ LỆ HOÀN (lọc theo ngày gửi, giống Pancake "Cập nhật trạng thái: Đã gửi hàng").
+    $sd = $null
+    foreach ($h in @($o.status_history)) {
+      if ([int]$h.status -eq 2) { try { $sd = ([datetime](("" + $h.updated_at) -split '\.')[0]).ToString('yyyy-MM-dd') } catch {}; break }
+    }
     [void]$orders.Add([ordered]@{
       d    = ([datetime]$o.inserted_at).ToString('yyyy-MM-dd')
+      sd   = $sd
       pid  = $pgid
       st   = $sn
       sale = $sale
