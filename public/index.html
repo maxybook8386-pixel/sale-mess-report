@@ -119,6 +119,11 @@
   .smodal{position:fixed;inset:0;background:rgba(20,25,40,.45);display:flex;align-items:flex-start;justify-content:center;z-index:200;padding:40px 16px;overflow:auto}
   .smbox{background:#fff;border-radius:15px;max-width:760px;width:100%;padding:22px 24px;box-shadow:0 20px 60px rgba(0,0,0,.3);position:relative}
   .smx{position:absolute;top:14px;right:14px;border:none;background:#f1efe8;border-radius:9px;width:32px;height:32px;font-size:16px;cursor:pointer;color:var(--muted)}
+  .team-box{max-width:1120px}
+  .proj{cursor:pointer;transition:box-shadow .15s,transform .15s}
+  .proj:hover{box-shadow:0 6px 18px rgba(31,95,176,.16);transform:translateY(-1px)}
+  .proj::after{content:'Xem chi tiết →';position:absolute;right:14px;bottom:12px;font-size:10.5px;font-weight:800;color:var(--blue);opacity:0;transition:opacity .15s}
+  .proj:hover::after{opacity:.85}
   @media(max-width:860px){.layout{flex-direction:column}.side{width:100%;height:auto;position:static;border-right:none;border-bottom:1px solid var(--line)}}
 </style>
 </head>
@@ -305,6 +310,25 @@
   </div>
 </div>
 
+<div id="teamModal" class="smodal" style="display:none">
+  <div class="smbox team-box">
+    <button id="tmxClose" class="smx">✕</button>
+    <div id="teamHead"></div>
+    <div id="teamKpis" class="kpis" style="margin-top:14px"></div>
+    <div style="margin-top:16px">
+      <div style="font-size:13.5px;font-weight:800;color:var(--blue-d);margin-bottom:8px">👤 Chi tiết theo nhân viên</div>
+      <div style="overflow:auto">
+        <table id="teamStaffTbl" style="font-size:13px">
+          <thead><tr>
+            <th>Nhân viên</th><th>SĐT</th><th>Đơn chốt</th><th>Tỉ lệ chốt</th><th>Doanh số</th>
+            <th>Đã giao</th><th>Hoàn</th><th>Tỉ lệ hoàn</th><th>Chi phí IB</th><th>ADS/DS</th>
+          </tr></thead><tbody></tbody><tfoot></tfoot>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script src="data.js"></script>
 <script src="meta.js"></script>
 <script src="allsales.js"></script>
@@ -397,8 +421,8 @@ function aggregate(from,to){
     if(o.st==='returned'||o.st==='returning') p.returned++;
     if(cl){ p.closed++; p.revenue+=o.rev; }
     // sale
-    const s=sales[o.sale]||(sales[o.sale]={name:o.sale,orders:0,closed:0,delivered:0,returned:0,revenue:0});
-    s.orders++; if(o.st==='delivered')s.delivered++; if(o.st==='returned'||o.st==='returning')s.returned++;
+    const s=sales[o.sale]||(sales[o.sale]={name:o.sale,orders:0,closed:0,delivered:0,returned:0,revenue:0,delivRev:0});
+    s.orders++; if(o.st==='delivered'){s.delivered++; s.delivRev+=o.rev;} if(o.st==='returned'||o.st==='returning')s.returned++;
     if(cl){s.closed++; s.revenue+=o.rev;}
     // status
     statusCount[o.st]=(statusCount[o.st]||0)+1;
@@ -452,14 +476,14 @@ function computeSpInt(from,to){
   }
   return res;
 }
-let curFrom=null, curTo=null;
+let curFrom=null, curTo=null, curA=null;
 function rerender(){ if(curFrom&&curTo) render(curFrom,curTo); }
 function render(from,to){
   curFrom=from; curTo=to;
   curMonthKey=(fmt(to)||D.today).slice(0,7);   // tháng của kỳ (theo ngày cuối) → tỉ giá riêng tháng đó
   RV=activeRate(curMonthKey);                   // ghi đè tỉ giá thị trường bằng tỉ giá cấu hình theo tháng
   updateRateBadge();
-  const A=aggregate(from,to);
+  const A=aggregate(from,to); curA=A;
   A.spInt=computeSpInt(from,to);
   const _lu=document.getElementById('lastUpd'); if(_lu){ const _g=(D.generated_at||'').split(' '); const _dp=(_g[0]||'').split('-'); _lu.textContent = _dp.length===3 ? `🕐 ${_dp[2]}/${_dp[1]} · ${_g[1]||''}` : '🕐 '+D.generated_at; }
   const single = (fmt(from)===fmt(to));
@@ -628,7 +652,7 @@ function renderProjects(A){
   const hoanCol=v=>v>15?C.red:(v>8?C.amber:C.green);
   const mkL=(m.key||'').toUpperCase();
   grid.innerHTML=cards.map(p=>`
-    <div class="proj ${p.empty?'empty':''}">
+    <div class="proj ${p.empty?'empty':''}" data-code="${p.code}">
       <div class="proj-h">
         <div class="proj-ic">📁</div>
         <div style="flex:1">
@@ -649,6 +673,73 @@ function renderProjects(A){
         <div><div class="pm-l">% hoàn</div><div class="pm-v" style="color:${p.denom?hoanCol(p.hoan):C.muted}">${p.denom?p.hoan.toFixed(1)+'%':'—'}</div></div>
       </div>
     </div>`).join('');
+}
+
+// CHI TIẾT DỰ ÁN (click card): KPI team + bảng từng NV — dùng lại số kỳ hiện tại (curA)
+function openTeam(code){
+  const list=PROJECTS[m&&m.key]||[]; const pr=list.find(x=>x.code===code); if(!pr||!curA) return;
+  const SA=(META&&META.byMkt&&META.byMkt[m&&m.key]&&META.byMkt[m.key].staffAds)||{};
+  const set=new Set(pr.staff);
+  const rows=[]; const T={orders:0,closed:0,deliv:0,ret:0,rev:0,delivRev:0,spend:0,camps:0,mess:0};
+  for(const s of (curA.sales||[])){
+    const id=(String(s.name).match(/^(\d+)/)||[])[1]; if(!id||!set.has(id)) continue;
+    const at=(SA[id]&&curPreset)?((SA[id].t||{})[curPreset]||{}):{};
+    const r={id,name:String(s.name).replace(/^\d+[_\s]*/,'').trim(),orders:s.orders,closed:s.closed,deliv:s.delivered,ret:s.returned,rev:s.revenue,delivRev:s.delivRev||0,spend:at.spend||0,camps:at.camps||0,mess:at.mess||0};
+    rows.push(r); T.orders+=r.orders;T.closed+=r.closed;T.deliv+=r.deliv;T.ret+=r.ret;T.rev+=r.rev;T.delivRev+=r.delivRev;T.spend+=r.spend;T.camps+=r.camps;T.mess+=r.mess;
+  }
+  for(const id of pr.staff){ if(rows.some(r=>r.id===id)) continue; const sa=SA[id]; if(!sa) continue;
+    const at=curPreset?((sa.t||{})[curPreset]||{}):{}; if(!(at.spend||at.camps)) continue;
+    rows.push({id,name:sa.name||id,orders:0,closed:0,deliv:0,ret:0,rev:0,delivRev:0,spend:at.spend||0,camps:at.camps||0,mess:at.mess||0});
+    T.spend+=at.spend||0;T.camps+=at.camps||0;T.mess+=at.mess||0;
+  }
+  rows.sort((a,b)=>b.rev-a.rev);
+  const leadName=(rows.find(r=>r.id===pr.leader)||{}).name||(SA[pr.leader]&&SA[pr.leader].name)||'—';
+  const per=curFrom&&curTo?(fmt(curFrom)===fmt(curTo)?viDate(curFrom):viDate(curFrom)+' → '+viDate(curTo)):'';
+  document.getElementById('teamHead').innerHTML=`
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="proj-ic" style="width:40px;height:40px;font-size:20px">📁</div>
+      <div><div style="display:flex;align-items:center;gap:7px;flex-wrap:wrap">
+        <span class="proj-mk">${(m.key||'').toUpperCase()}</span>
+        ${pr.brand?`<span class="proj-brand ${pr.brand==='BAHA'?'baha':''}">${pr.brand}</span>`:''}
+        <span style="font-size:20px;font-weight:800">Dự án ${pr.code}</span></div>
+        <div class="proj-sub" style="margin:2px 0 0">Leader: <b>${leadName}</b> · ${pr.staff.length} NV · ${per}</div>
+      </div></div>`;
+  const doanhSo=T.rev*RV, chiPhi=curPreset?T.spend:null;
+  const denom=T.deliv+T.ret, hoan=denom?T.ret/denom*100:0;
+  const tlChot=T.mess>0?T.closed/T.mess*100:(T.orders>0?T.closed/T.orders*100:null);
+  const tlLbl=T.mess>0?'đơn chốt ÷ mess':'đơn chốt ÷ SĐT';
+  const adsDS=(chiPhi!=null&&doanhSo>0)?chiPhi/doanhSo*100:null;
+  const K=[
+    {lbl:'Số đơn',val:fmtN(T.closed),sub:`SĐT ${fmtN(T.orders)}`},
+    {lbl:'Tỉ lệ chốt',val:tlChot==null?'—':tlChot.toFixed(1)+'%',sub:tlLbl,color:tlChot==null?C.muted:(tlChot>=15?C.green:tlChot>=8?C.amber:C.red)},
+    {lbl:'Doanh số',val:vnd(T.rev),money:true,sub:'đơn chốt (gộp)'},
+    {lbl:'Doanh thu',val:vnd(T.rev*(1-hoan/100)),money:true,sub:`sau hoàn ${denom?hoan.toFixed(1)+'%':'—'}`},
+    {lbl:'Doanh thu đơn TC',val:vnd(T.delivRev),money:true,sub:`${fmtN(T.deliv)} đơn giao`},
+    {lbl:'Chi phí IB',val:chiPhi==null?'—':vnd(T.spend),money:true,sub:curPreset?fmtN(T.camps)+' camps':'chọn kỳ'},
+    {lbl:'ADS / DS',val:adsDS==null?'—':adsDS.toFixed(1)+'%',sub:'chi phí ÷ doanh số',color:adsDS==null?C.muted:(adsDS<45?C.green:adsDS<=70?C.amber:C.red)},
+    {lbl:'Tỉ lệ hoàn',val:denom?hoan.toFixed(1)+'%':'—',sub:`${fmtN(T.ret)}/${fmtN(denom)} đơn`,color:hoan>15?C.red:C.green},
+    {lbl:'Đã giao TC',val:fmtN(T.deliv),sub:'đơn giao thành công'},
+  ];
+  document.getElementById('teamKpis').innerHTML=K.map(k=>`<div class="kpi"><div class="k-lbl">${k.lbl}</div><div class="k-val" style="${k.color?`color:${k.color};`:''}${k.money?'font-size:17px;':''}">${k.val}</div><div class="k-sub">${k.sub}</div></div>`).join('');
+  const tb=document.querySelector('#teamStaffTbl tbody');
+  tb.innerHTML=rows.map(r=>{
+    const cr=r.orders?r.closed/r.orders*100:0, dn=r.deliv+r.ret, rr=dn?r.ret/dn*100:0, ds=r.rev*RV, ads=ds>0?r.spend/ds*100:null;
+    return `<tr><td class="pg">${r.name}</td>
+      <td class="num">${fmtN(r.orders)}</td><td class="num">${fmtN(r.closed)}</td>
+      <td>${r.orders?`<span class="pill ${cr>=50?'g':cr>=30?'a':'r'}">${cr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
+      <td class="num">${vnd(r.rev)}</td>
+      <td class="num">${fmtN(r.deliv)}</td><td class="num">${fmtN(r.ret)}</td>
+      <td>${dn?`<span class="pill ${rr>15?'r':'g'}">${rr.toFixed(1)}%</span>`:'<span class="pill n">—</span>'}</td>
+      <td class="num">${curPreset?vnd(r.spend):'—'}</td>
+      <td class="num" style="color:${ads==null?'var(--muted)':(ads<45?C.green:ads<=70?C.amber:C.red)}">${ads==null?'—':ads.toFixed(1)+'%'}</td></tr>`;
+  }).join('')||`<tr><td colspan="10" class="empty">Chưa có dữ liệu</td></tr>`;
+  document.querySelector('#teamStaffTbl tfoot').innerHTML=`<tr style="font-weight:800;background:var(--sky)">
+    <td>TỔNG ĐỘI</td><td class="num">${fmtN(T.orders)}</td><td class="num">${fmtN(T.closed)}</td>
+    <td>${tlChot==null?'—':tlChot.toFixed(1)+'%'}</td><td class="num">${vnd(T.rev)}</td>
+    <td class="num">${fmtN(T.deliv)}</td><td class="num">${fmtN(T.ret)}</td>
+    <td>${denom?hoan.toFixed(1)+'%':'—'}</td><td class="num">${curPreset?vnd(T.spend):'—'}</td>
+    <td class="num">${adsDS==null?'—':adsDS.toFixed(1)+'%'}</td></tr>`;
+  document.getElementById('teamModal').style.display='flex';
 }
 
 function renderMeta(A){
@@ -870,6 +961,10 @@ document.getElementById('tmSp').addEventListener('keydown',e=>{ if(e.key==='Ente
 document.getElementById('openSettings').addEventListener('click',()=>{ document.getElementById('settingsModal').style.display='flex'; renderTagMapUI(); });
 document.getElementById('smClose').addEventListener('click',()=>{ document.getElementById('settingsModal').style.display='none'; });
 document.getElementById('settingsModal').addEventListener('click',e=>{ if(e.target.id==='settingsModal') e.currentTarget.style.display='none'; });
+// Click card dự án -> mở chi tiết team
+document.getElementById('projGrid').addEventListener('click',e=>{ const c=e.target.closest('.proj'); if(c&&c.dataset.code) openTeam(c.dataset.code); });
+document.getElementById('tmxClose').addEventListener('click',()=>{ document.getElementById('teamModal').style.display='none'; });
+document.getElementById('teamModal').addEventListener('click',e=>{ if(e.target.id==='teamModal') e.currentTarget.style.display='none'; });
 renderTagMapUI();
 
 // ---- TỰ CẬP NHẬT mỗi 5 phút (nạp lại data.js, không reload trang) ----

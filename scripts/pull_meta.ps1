@@ -49,18 +49,19 @@ foreach($preset in $presets){
         $code=$mch.Groups[1].Value; $typ=$mch.Groups[2].Value
         if($typ -ne 'IB'){ continue }   # CHỈ camp IB (mess, chi phí SP, lẫn chi phí đội) — khớp đơn FB inbox
 
-        # ── ADS THEO MÃ NV (chi phí đội dự án) — chỉ IB để khớp doanh số đơn FB inbox ──
-        $toks = $nm.Trim() -split '\s+'
-        if($toks.Count -ge 3 -and $toks[1] -match '^\d{6,}$'){
-          $sid=$toks[1]; $snm=$toks[2]; $mkP=Get-Mkt $nm; $spd=[double]$row.spend
-          if(-not $projs.ContainsKey($mkP)){ $projs[$mkP]=@{} }
-          if(-not $projs[$mkP].ContainsKey($sid)){ $projs[$mkP][$sid]=@{ name=$snm; t=@{} } }
-          $P=$projs[$mkP][$sid]
-          if(-not $P.t.ContainsKey($preset)){ $P.t[$preset]=@{ spend=0.0; camps=0 } }
-          $P.t[$preset].spend += $spd; $P.t[$preset].camps += 1
-        }
         $mk=Get-Mkt $nm
         $mess=0; foreach($ac in $row.actions){ if($ac.action_type -eq 'onsite_conversion.messaging_conversation_started_7d'){ $mess=[double]$ac.value; break } }
+
+        # ── ADS THEO MÃ NV (chi phí+mess+camps của đội dự án) — chỉ IB để khớp đơn FB inbox ──
+        $toks = $nm.Trim() -split '\s+'
+        if($toks.Count -ge 3 -and $toks[1] -match '^\d{6,}$'){
+          $sid=$toks[1]; $snm=$toks[2]; $spd=[double]$row.spend
+          if(-not $projs.ContainsKey($mk)){ $projs[$mk]=@{} }
+          if(-not $projs[$mk].ContainsKey($sid)){ $projs[$mk][$sid]=@{ name=$snm; t=@{} } }
+          $P=$projs[$mk][$sid]
+          if(-not $P.t.ContainsKey($preset)){ $P.t[$preset]=@{ spend=0.0; camps=0; mess=0.0 } }
+          $P.t[$preset].spend += $spd; $P.t[$preset].camps += 1; $P.t[$preset].mess += $mess
+        }
         if(-not $mkts.ContainsKey($mk)){ $mkts[$mk]=@{} }
         $sp=$mkts[$mk]
         if(-not $sp.ContainsKey($code)){ $sp[$code]=@{ name=''; t=@{} } }
@@ -104,7 +105,7 @@ foreach($mk in $allMkts){
     foreach($sid in ($projs[$mk].Keys | Sort-Object)){
       $P=$projs[$mk][$sid]
       $pt=[ordered]@{}
-      foreach($pr in $presets){ if($P.t.ContainsKey($pr)){ $pt[$pr]=[ordered]@{ spend=[math]::Round($P.t[$pr].spend); camps=[int]$P.t[$pr].camps } } else { $pt[$pr]=[ordered]@{ spend=0; camps=0 } } }
+      foreach($pr in $presets){ if($P.t.ContainsKey($pr)){ $pt[$pr]=[ordered]@{ spend=[math]::Round($P.t[$pr].spend); camps=[int]$P.t[$pr].camps; mess=[int]$P.t[$pr].mess } } else { $pt[$pr]=[ordered]@{ spend=0; camps=0; mess=0 } } }
       $saOut[$sid]=[ordered]@{ name=$P.name; t=$pt }
       $totProj++
     }
