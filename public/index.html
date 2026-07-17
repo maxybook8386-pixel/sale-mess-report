@@ -44,6 +44,23 @@
   .grid{display:grid;grid-template-columns:1.55fr 1fr;gap:16px;margin-bottom:16px}
   .panel{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:16px 18px;
     box-shadow:0 2px 12px rgba(31,95,176,.05)}
+  /* Dự án trong thị trường */
+  .proj-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:820px){.proj-grid{grid-template-columns:1fr}}
+  .proj{border:1px solid var(--line);border-radius:14px;padding:14px 16px;position:relative;overflow:hidden;background:var(--card)}
+  .proj::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--blue)}
+  .proj.empty{opacity:.55}.proj.empty::before{background:#cbd5e1}
+  .proj-h{display:flex;align-items:center;gap:8px;margin-bottom:2px}
+  .proj-ic{width:34px;height:34px;border-radius:9px;background:var(--sky);display:flex;align-items:center;justify-content:center;font-size:17px;flex-shrink:0}
+  .proj-mk{font-size:11px;font-weight:800;color:var(--muted)}
+  .proj-brand{font-size:10.5px;font-weight:800;color:var(--blue);background:#e8f1fd;border-radius:5px;padding:1px 7px}
+  .proj-brand.baha{color:#8a5bd0;background:#f0e9fb}
+  .proj-name{font-size:16px;font-weight:800;color:var(--ink)}
+  .proj-sub{font-size:11.5px;color:var(--muted);margin:2px 0 12px}
+  .proj-m{display:grid;grid-template-columns:repeat(6,1fr);gap:8px}
+  .proj-m .pm-l{font-size:9.5px;color:var(--muted);font-weight:700;text-transform:uppercase;letter-spacing:.2px}
+  .proj-m .pm-v{font-size:14.5px;font-weight:800;margin-top:3px;letter-spacing:-.3px}
+  @media(max-width:560px){.proj-m{grid-template-columns:repeat(3,1fr);row-gap:10px}}
   .panel h2{font-size:14.5px;margin:0 0 14px;font-weight:800;color:var(--blue-d);display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .panel h2 .tag{font-size:11px;font-weight:700;color:var(--muted);background:var(--sky);border-radius:6px;padding:2px 8px}
   table{width:100%;border-collapse:collapse}
@@ -167,6 +184,11 @@
   <div class="panel" id="dailyPanel" style="margin-bottom:16px">
     <h2>Diễn biến theo ngày <span class="tag">KH tương tác · Tỉ lệ chốt · Doanh thu</span></h2>
     <canvas id="chDaily" height="90"></canvas>
+  </div>
+
+  <div class="panel" id="projPanel" style="margin-bottom:16px">
+    <h2>📁 Dự án trong thị trường <span class="tag" id="projTag">theo đội NV · doanh số & hoàn từ đơn FB · chi phí từ Meta</span></h2>
+    <div id="projGrid" class="proj-grid"></div>
   </div>
 
   <div class="panel" style="margin-bottom:16px">
@@ -551,11 +573,74 @@ function render(from,to){
     : `<tr><td colspan="7" class="empty">Không có dữ liệu</td></tr>`;
 
   renderMeta(A);
+  renderProjects(A);
   drawCharts(A,pages,single);
 
   document.getElementById('foot').innerHTML=
     `Nguồn: Pancake POS (đơn) + Pancake Inbox/pages.fm (KH tương tác). · Dữ liệu 45 ngày, lọc theo kỳ tại trình duyệt.<br>
      Cập nhật số mới: chạy <code>refresh.ps1</code> rồi deploy lại. <b>Tỉ lệ chốt</b> = Số đơn ÷ KH mới tương tác · <b>Tỉ lệ hoàn</b> = Hoàn ÷ (Đã giao + Hoàn).`;
+}
+
+// VND gọn: 1.2tr · 512k · 900đ
+function vndC(v){ v=Math.round(v||0); if(Math.abs(v)>=1e6)return (v/1e6).toFixed(v/1e6>=10?0:1).replace(/\.0$/,'')+'tr'; if(Math.abs(v)>=1e3)return Math.round(v/1e3)+'k'; return v+'đ'; }
+
+// DỰ ÁN TRONG THỊ TRƯỜNG: đội NV (từ Meta) × đơn/hoàn (từ POS, join qua mã NV)
+function renderProjects(A){
+  const grid=document.getElementById('projGrid'), panel=document.getElementById('projPanel');
+  const P=(META&&META.byMkt&&META.byMkt[m&&m.key]&&META.byMkt[m.key].projects)||null;
+  if(!P||!Object.keys(P).length){ if(panel)panel.style.display='none'; return; }
+  panel.style.display='';
+  // gộp đơn theo mã NV (staffID = số đầu tên sale). Đơn trong data ĐÃ lọc nguồn FB.
+  const byStaff={};
+  for(const s of (A.sales||[])){
+    const id=(String(s.name).match(/^(\d+)/)||[])[1]; if(!id) continue;
+    const b=byStaff[id]||(byStaff[id]={rev:0,closed:0,delivered:0,returned:0,name:String(s.name).replace(/^\d+[_\s]*/,'').trim()});
+    b.rev+=s.revenue||0; b.closed+=s.closed||0; b.delivered+=s.delivered||0; b.returned+=s.returned||0;
+  }
+  const cards=Object.keys(P).map(code=>{
+    const pr=P[code], ids=Object.keys(pr.staff||{});
+    // leader = NV chi tiêu Meta cao nhất
+    let leadId=ids[0]||'', hi=-1;
+    for(const id of ids){ const sp=(pr.staff[id].spend||0); if(sp>hi){hi=sp;leadId=id;} }
+    const leadName=(byStaff[leadId]&&byStaff[leadId].name)||(pr.staff[leadId]&&pr.staff[leadId].name)||'—';
+    let rev=0,closed=0,deliv=0,ret=0;
+    for(const id of ids){ const b=byStaff[id]; if(!b)continue; rev+=b.rev; closed+=b.closed; deliv+=b.delivered; ret+=b.returned; }
+    const doanhSo=rev*RV;                                   // VND
+    const pt=(pr.t||{})[curPreset]||null;                   // chi phí/camps chỉ có theo kỳ preset
+    const chiPhi=pt?pt.spend:null, camps=pt?pt.camps:null;
+    const denom=deliv+ret, hoan=denom?ret/denom*100:0;
+    const dtDuKien=doanhSo*(1-hoan/100);
+    const gttb=closed?doanhSo/closed:0;
+    const adsDS=(chiPhi!=null&&doanhSo>0)?chiPhi/doanhSo*100:null;
+    const empty=(doanhSo<=0 && !(chiPhi>0));
+    return {code,brand:pr.brand||'',leadName,camps,nv:ids.length,doanhSo,dtDuKien,chiPhi,gttb,closed,adsDS,hoan,denom,empty,sortv:doanhSo+(chiPhi||0)};
+  }).sort((a,b)=>a.empty-b.empty || b.sortv-a.sortv);
+
+  const adsCol=v=>v==null?C.muted:(v<45?C.green:v<=70?C.amber:C.red);
+  const hoanCol=v=>v>15?C.red:(v>8?C.amber:C.green);
+  const mkL=(m.key||'').toUpperCase();
+  grid.innerHTML=cards.map(p=>`
+    <div class="proj ${p.empty?'empty':''}">
+      <div class="proj-h">
+        <div class="proj-ic">📁</div>
+        <div style="flex:1">
+          <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap">
+            <span class="proj-mk">${mkL}</span>
+            ${p.brand?`<span class="proj-brand ${p.brand==='BAHA'?'baha':''}">${p.brand}</span>`:''}
+            <span class="proj-name">${p.code}</span>
+          </div>
+        </div>
+      </div>
+      <div class="proj-sub">Leader: <b>${p.leadName}</b> · ${p.camps==null?'—':p.camps} camps · ${p.nv} NV</div>
+      <div class="proj-m">
+        <div><div class="pm-l">Doanh số</div><div class="pm-v">${p.doanhSo>0?vndC(p.doanhSo):'—'}</div></div>
+        <div><div class="pm-l">DT dự kiến</div><div class="pm-v">${p.doanhSo>0?vndC(p.dtDuKien):'—'}</div></div>
+        <div><div class="pm-l">Chi phí</div><div class="pm-v">${p.chiPhi==null?'—':vndC(p.chiPhi)}</div></div>
+        <div><div class="pm-l">GTTB</div><div class="pm-v">${p.closed?vndC(p.gttb):'—'}</div></div>
+        <div><div class="pm-l">ADS/DS</div><div class="pm-v" style="color:${adsCol(p.adsDS)}">${p.adsDS==null?'—':p.adsDS.toFixed(1)+'%'}</div></div>
+        <div><div class="pm-l">% hoàn</div><div class="pm-v" style="color:${p.denom?hoanCol(p.hoan):C.muted}">${p.denom?p.hoan.toFixed(1)+'%':'—'}</div></div>
+      </div>
+    </div>`).join('');
 }
 
 function renderMeta(A){

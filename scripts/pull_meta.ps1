@@ -27,6 +27,9 @@ function Get-Mkt([string]$name){
   else { 'th' }
 }
 $mkts=@{}   # mktkey -> @{ code -> @{name; t=@{preset->@{mess;spend}}} }
+# DỰ ÁN (đội NV): prefix tên camp (A2S03F->A2) = mã dự án; token[1] = mã NV (trùng ID sale trong đơn POS)
+# projs: mkt -> prefix -> @{ brand; staff=@{id->@{name;spend}}; t=@{preset->@{spend;camps}} }  (gom CẢ IB lẫn CD)
+$projs=@{}
 
 foreach($preset in $presets){
   $rows=0
@@ -42,6 +45,28 @@ foreach($preset in $presets){
       if(-not $r){ break }
       foreach($row in $r.data){
         $nm="" + $row.campaign_name
+
+        # ── DỰ ÁN (đội NV): gom MỌI camp (IB+CD) theo prefix + mã NV ──
+        $toks = $nm.Trim() -split '\s+'
+        if($toks.Count -ge 3 -and $toks[1] -match '^\d{6,}$'){
+          $pref=$toks[0]
+          if($pref -match '^([A-Za-z]\d+)S'){ $pm=$Matches[1].ToUpper() } else { $pm=$pref.ToUpper() }
+          if($pm -notmatch '^[A-Z]\d+$'){ $pm=$null }   # bỏ prefix rác (AVB, chuỗi lạ)
+          if($pm){
+          $sid=$toks[1]; $snm=$toks[2]; $mkP=Get-Mkt $nm; $spd=[double]$row.spend
+          if(-not $projs.ContainsKey($mkP)){ $projs[$mkP]=@{} }
+          if(-not $projs[$mkP].ContainsKey($pm)){
+            if($pm -match '^[Aa]'){ $br='AVB' } elseif($pm -match '^[Bb]'){ $br='BAHA' } else { $br='' }
+            $projs[$mkP][$pm]=@{ brand=$br; staff=@{}; t=@{} }
+          }
+          $P=$projs[$mkP][$pm]
+          if(-not $P.staff.ContainsKey($sid)){ $P.staff[$sid]=@{ name=$snm; spend=0.0 } }
+          $P.staff[$sid].spend += $spd
+          if(-not $P.t.ContainsKey($preset)){ $P.t[$preset]=@{ spend=0.0; camps=0 } }
+          $P.t[$preset].spend += $spd; $P.t[$preset].camps += 1
+          }
+        }
+
         $mch=$reCode.Match($nm); if(-not $mch.Success){ continue }
         $code=$mch.Groups[1].Value; $typ=$mch.Groups[2].Value
         if($typ -ne 'IB'){ continue }   # CHỈ tính camp IB (cả mess lẫn chi phí); CD chạy web -> bỏ hẳn
@@ -70,17 +95,34 @@ try{
 
 # Xuất theo thị trường: byMkt.<key>.sp.<code>.t.<preset>{mess,spend}
 $out=[ordered]@{ generated_at=(Get-Date).ToString('yyyy-MM-dd HH:mm'); presets=$presets; byMkt=[ordered]@{} }
-$totCodes=0
-foreach($mk in ($mkts.Keys | Sort-Object)){
+$totCodes=0; $totProj=0
+$allMkts = @($mkts.Keys) + @($projs.Keys) | Select-Object -Unique | Sort-Object
+foreach($mk in $allMkts){
+  # -- SP (mess/chi phí IB theo mã SP) --
   $spOut=[ordered]@{}
-  foreach($c in ($mkts[$mk].Keys | Sort-Object)){
-    $t=[ordered]@{}
-    foreach($pr in $presets){ if($mkts[$mk][$c].t.ContainsKey($pr)){ $t[$pr]=[ordered]@{ mess=[int]$mkts[$mk][$c].t[$pr].mess; spend=[math]::Round($mkts[$mk][$c].t[$pr].spend) } } else { $t[$pr]=[ordered]@{ mess=0; spend=0 } } }
-    $nm=if($c2n.ContainsKey($c)){ $c2n[$c] } else { '' }
-    $spOut[$c]=[ordered]@{ name=$nm; t=$t }
-    $totCodes++
+  if($mkts.ContainsKey($mk)){
+    foreach($c in ($mkts[$mk].Keys | Sort-Object)){
+      $t=[ordered]@{}
+      foreach($pr in $presets){ if($mkts[$mk][$c].t.ContainsKey($pr)){ $t[$pr]=[ordered]@{ mess=[int]$mkts[$mk][$c].t[$pr].mess; spend=[math]::Round($mkts[$mk][$c].t[$pr].spend) } } else { $t[$pr]=[ordered]@{ mess=0; spend=0 } } }
+      $nm=if($c2n.ContainsKey($c)){ $c2n[$c] } else { '' }
+      $spOut[$c]=[ordered]@{ name=$nm; t=$t }
+      $totCodes++
+    }
   }
-  $out.byMkt[$mk]=[ordered]@{ sp=$spOut }
+  # -- DỰ ÁN (đội NV) --
+  $projOut=[ordered]@{}
+  if($projs.ContainsKey($mk)){
+    foreach($pm in ($projs[$mk].Keys | Sort-Object)){
+      $P=$projs[$mk][$pm]
+      $stOut=[ordered]@{}
+      foreach($sid in ($P.staff.Keys | Sort-Object)){ $stOut[$sid]=[ordered]@{ name=$P.staff[$sid].name; spend=[math]::Round($P.staff[$sid].spend) } }
+      $pt=[ordered]@{}
+      foreach($pr in $presets){ if($P.t.ContainsKey($pr)){ $pt[$pr]=[ordered]@{ spend=[math]::Round($P.t[$pr].spend); camps=[int]$P.t[$pr].camps } } else { $pt[$pr]=[ordered]@{ spend=0; camps=0 } } }
+      $projOut[$pm]=[ordered]@{ brand=$P.brand; staff=$stOut; t=$pt }
+      $totProj++
+    }
+  }
+  $out.byMkt[$mk]=[ordered]@{ sp=$spOut; projects=$projOut }
 }
 [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot '../public/meta.js'),"window.META_DATA = $($out | ConvertTo-Json -Depth 8);",(New-Object System.Text.UTF8Encoding $false))
-Write-Host ("`n✅ {0} thị trường / {1} mã SP -> meta.js" -f $out.byMkt.Count,$totCodes) -ForegroundColor Green
+Write-Host ("`n✅ {0} thị trường / {1} mã SP / {2} dự án -> meta.js" -f $out.byMkt.Count,$totCodes,$totProj) -ForegroundColor Green
