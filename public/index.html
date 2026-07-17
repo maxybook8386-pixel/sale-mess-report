@@ -306,10 +306,10 @@
     </div>
     <div id="tmList" style="margin-bottom:8px;font-size:12.5px"></div>
     <div id="tmAssigned" style="margin-bottom:12px"></div>
-    <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Tất cả thẻ (nhìn nội dung mẫu → gõ mã SP ở cột cuối, tự lưu)</div>
+    <div style="font-size:12px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px">Thẻ đã gán</div>
     <div style="overflow:auto;max-height:52vh">
       <table id="tblTags" style="font-size:13px"><thead><tr>
-        <th>ID</th><th>Nội dung mẫu (tin gần nhất)</th><th>Tổng</th><th>Hôm nay</th><th>Mã SP</th>
+        <th>ID thẻ</th><th>Mã SP</th><th></th>
       </tr></thead><tbody></tbody></table>
     </div>
   </div>
@@ -973,39 +973,16 @@ document.querySelectorAll('.tab').forEach(b=>b.addEventListener('click',()=>{
 
 // ---- Ô GÁN THẺ TAG → MÃ SP ----
 function renderTagMapUI(){
-  const today=(D&&D.today)||'';
-  const ti=(TAGINT&&TAGINT.tag_int)||{}, tot=(TAGINT&&TAGINT.tag_total)||{}, smp=(TAGINT&&TAGINT.tag_sample)||{};
   const nMap=Object.keys(TAGMAP).filter(k=>TAGMAP[k]).length;
-  document.getElementById('tmList').innerHTML='<span style="color:var(--muted)">💡 Nhìn <b>nội dung mẫu</b> đoán thẻ thuộc sách nào → gõ <b>mã SP</b> ở cột phải (tự lưu, bảng SP cập nhật ngay). Đã gán: <b style="color:var(--green)">'+nMap+'</b> thẻ.</span>';
-  const ids=Object.keys(tot).sort((a,b)=>(tot[b]||0)-(tot[a]||0));
-  document.querySelector('#tblTags tbody').innerHTML = ids.length ? ids.map(id=>{
-    const td=(ti[id]||{})[today]||0, tt=tot[id]||0, sp=TAGMAP[id]||'';
-    const snip=((smp[id]||'')+'').slice(0,64).replace(/</g,'&lt;');
-    return `<tr${sp?' style="background:#f2fbf5"':''}><td class="pg"><b>${id}</b></td>
-      <td style="font-size:12px;color:var(--muted);max-width:340px;white-space:normal">${snip||'—'}</td>
-      <td class="num">${fmtN(tt)}</td><td class="num">${fmtN(td)}</td>
-      <td><input data-map="${id}" value="${sp}" placeholder="mã SP" style="width:86px;padding:4px 7px;border:1px solid #cfd8e6;border-radius:7px;font-size:12.5px;text-transform:uppercase"></td></tr>`;
-  }).join('') : '<tr><td colspan="5" class="empty">Chưa có dữ liệu thẻ (đợi cập nhật).</td></tr>';
-  document.querySelectorAll('#tblTags [data-map]').forEach(inp=>{
-    inp.onchange=()=>{ const id=inp.dataset.map, v=inp.value.trim().toUpperCase();
-      if(v)TAGMAP[id]=v; else delete TAGMAP[id];
-      localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); rerender(); renderAssigned();
-      inp.closest('tr').style.background=v?'#f2fbf5':''; };
-  });
-  renderAssigned();
-}
-// Danh sách thẻ ĐÃ GÁN (ID → SP), cập nhật ngay khi gán
-function renderAssigned(){
-  const box=document.getElementById('tmAssigned'); if(!box) return;
-  const tot=(TAGINT&&TAGINT.tag_total)||{};
-  const ids=Object.keys(TAGMAP).filter(k=>TAGMAP[k]).sort((a,b)=>(tot[b]||0)-(tot[a]||0));
-  if(!ids.length){ box.innerHTML='<span style="font-size:12px;color:var(--muted)">Chưa gán thẻ nào.</span>'; return; }
-  box.innerHTML='<div style="font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:5px">✅ Đã gán ('+ids.length+' thẻ)</div>'
-    +'<div style="display:flex;flex-wrap:wrap;gap:6px">'+ids.map(id=>
-      `<span style="display:inline-flex;align-items:center;gap:5px;background:#eaf6ee;border:1px solid #c7e7d3;border-radius:8px;padding:3px 9px;font-size:12.5px">
-        <b>${id}</b><span style="color:var(--muted)">→</span><b style="color:var(--green)">${TAGMAP[id]}</b>
-        <b data-unassign="${id}" style="cursor:pointer;color:#c0392b;margin-left:2px">✕</b></span>`).join('')+'</div>';
-  box.querySelectorAll('[data-unassign]').forEach(b=>b.onclick=()=>{ delete TAGMAP[b.dataset.unassign]; localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); renderTagMapUI(); rerender(); });
+  document.getElementById('tmList').innerHTML='<span style="color:var(--muted)">💡 Nhập <b>ID thẻ</b> + <b>mã SP</b> ở trên rồi bấm <b>Thêm</b> — mỗi thẻ gán sẽ hiện 1 dòng dưới đây. Đã gán: <b style="color:var(--green)">'+nMap+'</b> thẻ.</span>';
+  document.getElementById('tmAssigned').innerHTML='';
+  const ids=Object.keys(TAGMAP).filter(k=>TAGMAP[k]);
+  document.querySelector('#tblTags tbody').innerHTML = ids.length ? ids.map(id=>
+    `<tr><td class="pg"><b>${id}</b></td>
+      <td><b style="color:var(--green)">${TAGMAP[id]}</b></td>
+      <td><b data-del="${id}" style="cursor:pointer;color:#c0392b">✕ xóa</b></td></tr>`
+  ).join('') : '<tr><td colspan="3" class="empty">Chưa gán thẻ nào — nhập ID + mã SP ở trên rồi bấm Thêm.</td></tr>';
+  document.querySelectorAll('#tblTags [data-del]').forEach(b=>b.onclick=()=>{ delete TAGMAP[b.dataset.del]; saveTagmap(); });
 }
 function saveTagmap(){ localStorage.setItem('tagmap',JSON.stringify(TAGMAP)); renderTagMapUI(); rerender(); }
 document.getElementById('tmAdd').addEventListener('click',()=>{
