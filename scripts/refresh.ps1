@@ -147,6 +147,36 @@ foreach ($m in $markets) {
   }
 }
 
+# ==== TÍCH LŨY KH TƯƠNG TÁC: API pages.fm chỉ trả ~16 ngày gần nhất -> gộp với data.js CŨ
+#      để giữ lại các ngày cũ hơn. Chạy cron hàng ngày sẽ dần đủ history. ====
+$oldPath = Join-Path $PSScriptRoot '../public/data.js'
+if (Test-Path $oldPath) {
+  try {
+    $oldTxt = (Get-Content $oldPath -Raw) -replace '^window\.REPORT_DATA = ','' -replace ';\s*$',''
+    $old = $oldTxt | ConvertFrom-Json
+    foreach ($mk in $out.markets) {
+      $oldMk = $old.markets | Where-Object { $_.key -eq $mk.key } | Select-Object -First 1
+      if (-not $oldMk -or -not $oldMk.interactions) { continue }
+      $seen = @{}; $newDates = @()
+      foreach ($x in @($mk.interactions)) { $seen["$($x.pid)|$($x.d)"] = $true; $newDates += ("" + $x.d) }
+      $minNew = if ($newDates.Count) { ($newDates | Sort-Object)[0] } else { '9999-99-99' }
+      $merged = New-Object System.Collections.ArrayList
+      foreach ($x in @($mk.interactions)) { [void]$merged.Add($x) }
+      $kept = 0
+      foreach ($x in @($oldMk.interactions)) {
+        $k = "$($x.pid)|$($x.d)"
+        if (-not $seen.ContainsKey($k) -and ("" + $x.d) -lt $minNew) {
+          [void]$merged.Add([ordered]@{ d = ("" + $x.d); pid = ("" + $x.pid); n = [int]$x.n }); $kept++
+        }
+      }
+      $mk.interactions = @($merged)
+      $allDates = @($merged | ForEach-Object { "" + $_.d } | Sort-Object)
+      if ($allDates.Count) { $mk.interaction_from = $allDates[0] }
+      Write-Host ("  ↩ [{0}] tích lũy: giữ thêm {1} ngày tương tác cũ (đủ history từ {2})" -f $mk.key, $kept, $mk.interaction_from) -ForegroundColor Cyan
+    }
+  } catch { Write-Host "  (bỏ qua merge tương tác cũ: $($_.Exception.Message))" -ForegroundColor DarkYellow }
+}
+
 $json = $out | ConvertTo-Json -Depth 8
 $path = Join-Path $PSScriptRoot '../public/data.js'
 [System.IO.File]::WriteAllText($path, "window.REPORT_DATA = $json;", (New-Object System.Text.UTF8Encoding $false))

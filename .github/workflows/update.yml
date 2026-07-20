@@ -15,8 +15,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Tai file hien tai (de merge tags / du phong)
+      - name: Tai file hien tai (de merge tich luy tuong tac + tags)
         run: |
+          curl -s "https://sale-mess-th.pages.dev/data.js" -o public/data.js || true
           curl -s "https://sale-mess-th.pages.dev/tags.js" -o public/tags.js || true
           curl -s "https://sale-mess-th.pages.dev/meta.js" -o public/meta.js || true
 
