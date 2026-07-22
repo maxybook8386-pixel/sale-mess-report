@@ -174,6 +174,11 @@
       <span style="width:8px;height:8px;border-radius:50%;background:#1877f2;display:inline-block"></span> Nguồn: Facebook</span>
   </div>
 
+  <div id="teamBanner" style="display:none;align-items:center;gap:12px;background:linear-gradient(135deg,#eaf2fe,#f3f8ff);border:1px solid #cfe0f7;border-radius:12px;padding:11px 16px;margin-bottom:14px">
+    <button id="teamBack" class="fbtn" style="background:var(--blue);color:#fff;border:none;font-weight:800">← Quay lại báo cáo tổng</button>
+    <div id="teamBannerInfo" style="font-size:14px;font-weight:800;color:var(--blue-d)"></div>
+  </div>
+
   <div id="tabSale">
   <div class="filter" id="filter">
     <button class="fbtn on" data-k="today">Hôm nay</button>
@@ -356,6 +361,18 @@ function mktSp(){
   return (m&&m.key==='th' && META && META.sp) ? META.sp : {};   // fallback format cũ (chưa pull lại)
 }
 function hasMeta(){ return !!(META && (META.byMkt || META.sp)); }
+// Cộng mess/chi phí Meta theo NGÀY trong [curFrom,curTo] (MỌI kỳ, kể cả ngày tùy chọn).
+// Fallback cấu trúc CŨ t[preset] (khi meta.js chưa pull lại theo ngày) -> preset vẫn chạy, tránh gián đoạn.
+function metaSum(obj){ const r={mess:0,spend:0}; if(!obj) return r;
+  if(obj.days && curFrom && curTo){ const f=fmt(curFrom), t=fmt(curTo);
+    for(const d in obj.days){ if(d>=f && d<=t){ r.mess+=obj.days[d].mess||0; r.spend+=obj.days[d].spend||0; } } return r; }
+  if(obj.t && curPreset){ const x=obj.t[curPreset]||{}; return {mess:x.mess||0, spend:x.spend||0}; }
+  return r; }
+// meta.js đã theo NGÀY chưa? (có -> ads chạy mọi khoảng ngày; chưa -> chỉ 4 preset)
+function metaHasDays(){ if(!META||!META.byMkt) return false; const b=META.byMkt[m&&m.key]; if(!b) return false;
+  for(const c in (b.sp||{})) return !!b.sp[c].days;
+  for(const id in (b.staffAds||{})) return !!b.staffAds[id].days;
+  return false; }
 // ── Tỉ giá quy đổi VND, LƯU RIÊNG THEO THÁNG × THỊ TRƯỜNG (localStorage 'rateCfg') ──
 let curMonthKey='';   // 'yyyy-mm' của kỳ đang xem (đặt trong render)
 function rateStore(){ try{ return JSON.parse(localStorage.getItem('rateCfg')||'{}'); }catch(e){ return {}; } }
@@ -410,8 +427,13 @@ function periodRange(key){
 
 function aggregate(from,to){
   const f=fmt(from), t=fmt(to);
-  const ords = m.orders.filter(o=>o.d>=f && o.d<=t);
-  const ints = m.interactions.filter(x=>x.d>=f && x.d<=t);
+  // CHẾ ĐỘ XEM ĐỘI (curTeam): lọc toàn bộ báo cáo theo mã NV của đội
+  const _tset = curTeam ? new Set((((typeof PROJECTS!=='undefined'&&PROJECTS[m.key])||[]).find(p=>p.code===curTeam)||{}).staff||[]) : null;
+  const _inTeam = o => !_tset || _tset.has((String(o.sale).match(/^(\d+)/)||[])[1]);
+  let _teamPages=null;
+  if(_tset){ _teamPages=new Set(); for(const o of m.orders){ if(_inTeam(o)) _teamPages.add(o.pid); } }
+  const ords = m.orders.filter(o=>o.d>=f && o.d<=t && _inTeam(o));
+  const ints = m.interactions.filter(x=>x.d>=f && x.d<=t && (!_teamPages || _teamPages.has(x.pid)));
   const pages={}, sales={}, statusCount={}, dayMap={}, prods={}, byCode={}, codePage={};
 
   const ensurePage = pid => pages[pid] || (pages[pid]={id:pid,name:(m.pages_meta[pid]||pid),
@@ -472,7 +494,7 @@ function aggregate(from,to){
     const sid=(String(o.sale).match(/^(\d+)/)||[])[1]; if(sid)(retWin.byStaff[sid]=retWin.byStaff[sid]||{deliv:0,shipped:0,ret:0})[k]++; };
   // lọc theo NGÀY GỬI HÀNG (sd) — giống Pancake "Cập nhật trạng thái: Đã gửi hàng". Fallback ngày tạo nếu data cũ chưa có sd.
   const _useSd = m.orders.some(o=>o.sd);  retWin.bySd=_useSd;
-  for(const o of m.orders){ const wd=_useSd?o.sd:o.d; if(!wd||wd<rwF||wd>rwT) continue;
+  for(const o of m.orders){ if(_tset && !_inTeam(o)) continue; const wd=_useSd?o.sd:o.d; if(!wd||wd<rwF||wd>rwT) continue;
     if(o.st==='shipped')_bump(o,'shipped');
     else if(o.st==='returned'||o.st==='returning')_bump(o,'ret');
     else if(o.st==='delivered')_bump(o,'deliv');
@@ -508,7 +530,7 @@ function computeSpInt(from,to){
   }
   return res;
 }
-let curFrom=null, curTo=null, curA=null;
+let curFrom=null, curTo=null, curA=null, curTeam=null;
 function rerender(){ if(curFrom&&curTo) render(curFrom,curTo); }
 function render(from,to){
   curFrom=from; curTo=to;
@@ -521,6 +543,13 @@ function render(from,to){
   const single = (fmt(from)===fmt(to));
   document.getElementById('period').textContent =
     (single? viDate(from) : `${viDate(from)} → ${viDate(to)}`) + ` · cập nhật ${D.generated_at}`;
+  // chế độ xem ĐỘI (curTeam): banner + đổi tiêu đề
+  const _tb=document.getElementById('teamBanner');
+  if(curTeam){ const _tp=(PROJECTS[m.key]||[]).find(p=>p.code===curTeam)||{};
+    _tb.style.display='flex';
+    document.getElementById('teamBannerInfo').innerHTML=`📁 Báo cáo đội <b>${curTeam}</b>${_tp.brand?' · <span style="color:var(--blue)">'+_tp.brand+'</span>':''} · ${(_tp.staff||[]).length} NV — số liệu lọc riêng theo đội`;
+    document.querySelector('h1').textContent='📁 Báo cáo đội '+curTeam;
+  } else { _tb.style.display='none'; document.querySelector('h1').textContent='📊 Báo cáo Sale Messenger'; }
 
   const closeRate = A.incomplete ? null : pct(A.tot.closed, A.tot.interactions);
   // ==== Tỉ lệ hoàn: cửa sổ cố định [today-40, today-10], theo đơn ĐÃ GỬI ĐI (retWin trong aggregate) ====
@@ -529,9 +558,14 @@ function render(from,to){
   const _dmm = s => { const p=s.split('-'); return (+p[2])+'/'+(+p[1]); };
   const aov = A.tot.closed>0 ? A.tot.revenue/A.tot.closed : 0;         // TB đơn (doanh số ÷ đơn chốt)
   const doanhThuNet = A.tot.revenue * (1 - (retRate||0)/100);           // doanh thu = doanh số × (1 − hoàn)
-  // Ads/DT = tổng chi phí ads (IB, từ Meta) ÷ doanh số. Chỉ có theo kỳ preset.
+  // Ads/DT = tổng chi phí ads (IB, từ Meta) ÷ doanh số — theo NGÀY nên MỌI khoảng ngày đều có.
   let adsSpend=null;
-  if(curPreset && hasMeta()){ const _sp=mktSp(); adsSpend=0; for(const c in _sp){ adsSpend += ((_sp[c].t||{})[curPreset]||{}).spend||0; } }
+  if(hasMeta() && (metaHasDays() || curPreset)){
+    if(curTeam){ // chế độ đội: chi phí = staffAds của NV trong đội
+      const SA=(META.byMkt&&META.byMkt[m.key]&&META.byMkt[m.key].staffAds)||{}, tp=(PROJECTS[m.key]||[]).find(p=>p.code===curTeam);
+      adsSpend=0; if(tp) for(const id of tp.staff){ adsSpend += metaSum(SA[id]).spend; }
+    } else { const _sp=mktSp(); adsSpend=0; for(const c in _sp){ adsSpend += metaSum(_sp[c]).spend; } }
+  }
   const dtVND = A.tot.revenue*RV;
   const adsDT = (adsSpend!==null && dtVND>0) ? adsSpend/dtVND*100 : null;
 
@@ -565,11 +599,11 @@ function render(from,to){
       <div class="k-sub">${k.sub}</div></div>`).join('');
 
   // Ads theo page (ước lượng): phân bổ chi phí ads mỗi SP về page theo tỉ lệ đơn của SP đó
-  const pageAds={}; const hasAds = !!(curPreset && hasMeta());
+  const pageAds={}; const hasAds = !!(hasMeta() && (metaHasDays() || curPreset));
   if(hasAds){
     const _sp=mktSp();
     for(const code in _sp){
-      const spend=((_sp[code].t||{})[curPreset]||{}).spend||0;
+      const spend=metaSum(_sp[code]).spend;
       const bc=A.byCode[code]; if(!spend||!bc||!bc.orders) continue;
       const cp=A.codePage[code]||{};
       for(const pid in cp){ pageAds[pid]=(pageAds[pid]||0)+spend*cp[pid]/bc.orders; }
@@ -682,6 +716,7 @@ const PROJECTS = {
 // DỰ ÁN TRONG THỊ TRƯỜNG: doanh số/hoàn từ đơn POS + chi phí/camps từ Meta, gom theo MÃ NV của đội
 function renderProjects(A){
   const grid=document.getElementById('projGrid'), panel=document.getElementById('projPanel');
+  if(curTeam){ if(panel)panel.style.display='none'; return; }   // đang xem 1 đội -> ẩn lưới dự án
   const list=PROJECTS[m&&m.key]||[];
   const SA=(META&&META.byMkt&&META.byMkt[m&&m.key]&&META.byMkt[m.key].staffAds)||{};
   if(!list.length){ if(panel)panel.style.display='none'; return; }
@@ -697,17 +732,18 @@ function renderProjects(A){
     let rev=0,closed=0,deliv=0,ret=0,spend=0,camps=0;
     for(const id of pr.staff){
       const b=byStaff[id]; if(b){ rev+=b.rev; closed+=b.closed; deliv+=b.delivered; ret+=b.returned; }
-      const sa=SA[id]; if(sa&&curPreset){ const t=(sa.t||{})[curPreset]||{}; spend+=t.spend||0; camps+=t.camps||0; }
+      const sa=SA[id]; if(sa){ spend+=metaSum(sa).spend; camps+=(sa.days?(sa.camps||0):((sa.t&&sa.t[curPreset]&&sa.t[curPreset].camps)||0)); }
     }
     const leadName=(byStaff[pr.leader]&&byStaff[pr.leader].name)||(SA[pr.leader]&&SA[pr.leader].name)||'—';
     const doanhSo=rev*RV;                                   // VND
-    const chiPhi=curPreset?spend:null;                      // chi phí/camps chỉ có theo kỳ preset
+    const _adsOk=(metaHasDays()||curPreset);
+    const chiPhi=_adsOk?spend:null;                         // chi phí có cho MỌI khoảng ngày (nếu meta theo ngày)
     const denom=deliv+ret, hoan=denom?ret/denom*100:0;
     const dtDuKien=doanhSo*(1-hoan/100);
     const gttb=closed?doanhSo/closed:0;
     const adsDS=(chiPhi!=null&&doanhSo>0)?chiPhi/doanhSo*100:null;
     const empty=(doanhSo<=0 && !(chiPhi>0));
-    return {code:pr.code,brand:pr.brand||'',leadName,camps:curPreset?camps:null,nv:pr.staff.length,doanhSo,dtDuKien,chiPhi,gttb,closed,adsDS,hoan,denom,empty,sortv:doanhSo+(chiPhi||0)};
+    return {code:pr.code,brand:pr.brand||'',leadName,camps:_adsOk?camps:null,nv:pr.staff.length,doanhSo,dtDuKien,chiPhi,gttb,closed,adsDS,hoan,denom,empty,sortv:doanhSo+(chiPhi||0)};
   }).sort((a,b)=>a.empty-b.empty || b.sortv-a.sortv);
 
   const adsCol=v=>v==null?C.muted:(v<45?C.green:v<=70?C.amber:C.red);
@@ -808,16 +844,16 @@ function renderMeta(A){
   const tag=document.getElementById('metaTag'), note=document.getElementById('metaNote'), tb=document.querySelector('#tblMeta tbody');
   const lbl={today:'Hôm nay',yesterday:'Hôm qua',this_month:'Tháng này',last_month:'Tháng trước'};
   if(!hasMeta()){ tag.textContent='kỳ: —'; note.textContent='Chưa có dữ liệu Meta.'; tb.innerHTML='<tr><td colspan="9" class="empty">—</td></tr>'; return; }
-  if(!curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Mess Meta chỉ có theo 4 kỳ nút. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem mess theo SP.'; tb.innerHTML='<tr><td colspan="9" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
+  if(!metaHasDays() && !curPreset){ tag.textContent='kỳ: tùy chọn'; note.innerHTML='⚠️ Mess Meta chưa pull theo ngày. Chọn 1 nút (Hôm nay/Hôm qua/Tháng này/Tháng trước) để xem, hoặc đợi cập nhật.'; tb.innerHTML='<tr><td colspan="9" class="empty">Chọn 1 kỳ preset</td></tr>'; return; }
   const _sp=mktSp();
-  tag.textContent='kỳ: '+(lbl[curPreset]||curPreset);
-  note.innerHTML='<b>Mess = hội thoại từ quảng cáo IB</b> (Meta messaging, theo mã SP), <b>lọc theo đúng thị trường</b>. Chi phí = camp IB. Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng lại = <b>TỔNG</b>. · TT chỉ chạy CD (vd Indo) sẽ trống.';
+  tag.textContent='kỳ: '+(curPreset?(lbl[curPreset]||curPreset):(curFrom?viDate(curFrom)+'–'+viDate(curTo):'—'));
+  note.innerHTML='<b>Mess = hội thoại từ quảng cáo IB</b> (Meta messaging, theo mã SP), <b>lọc theo đúng thị trường + đúng khoảng ngày</b>. Chi phí = camp IB. Tỉ lệ chốt = đơn chốt ÷ mess. · Dòng <b>SP khác</b> = đơn của SP không chạy Meta → cộng lại = <b>TỔNG</b>. · TT chỉ chạy CD (vd Indo) sẽ trống.';
   const c2n={}; for(const p of (A.prods||[])){ if(p.code&&p.name&&!c2n[p.code]) c2n[p.code]=p.name; }
   let rows=Object.keys(_sp).map(c=>{
-    const t=(_sp[c].t||{})[curPreset]||{mess:0,spend:0};
+    const t=metaSum(_sp[c]);
     const bc=A.byCode[c]||{orders:0,closed:0};
     return {code:c,name:_sp[c].name||c2n[c]||'',mess:t.mess||0,spend:t.spend||0,orders:bc.orders,closed:bc.closed};
-  }).filter(r=>r.mess>0||r.orders>0);
+  }).filter(r=> curTeam ? r.orders>0 : (r.mess>0||r.orders>0));
   rows.sort((a,b)=>{ const pa=PRIO.indexOf(a.code),pb=PRIO.indexOf(b.code);
     if(pa>=0||pb>=0) return (pa<0?99:pa)-(pb<0?99:pb); return b.mess-a.mess; });
   const sumO=rows.reduce((a,r)=>a+r.orders,0), sumC=rows.reduce((a,r)=>a+r.closed,0);
@@ -914,7 +950,7 @@ if(!D||!D.markets||!D.markets.length){
   // chuyển thị trường (Thái ↔ Indo)
   document.querySelectorAll('.sitem[data-mkt]').forEach(el=>el.addEventListener('click',()=>{
     const idx=+el.dataset.mkt; if(!D.markets[idx]) return;
-    curMkt=idx; m=D.markets[idx]; RV=m.rate_vnd||RATE_VND; sym=m.symbol||'฿';
+    curMkt=idx; m=D.markets[idx]; RV=m.rate_vnd||RATE_VND; sym=m.symbol||'฿'; curTeam=null;
     document.querySelectorAll('.sitem[data-mkt]').forEach(x=>x.classList.remove('on')); el.classList.add('on');
     document.getElementById('mkt').textContent=`${m.flag||''} ${m.name}`;
     rerender();
@@ -1035,9 +1071,8 @@ document.getElementById('openSettings').addEventListener('click',()=>{ document.
 document.getElementById('smClose').addEventListener('click',()=>{ document.getElementById('settingsModal').style.display='none'; });
 document.getElementById('settingsModal').addEventListener('click',e=>{ if(e.target.id==='settingsModal') e.currentTarget.style.display='none'; });
 // Click card dự án -> mở chi tiết team
-document.getElementById('projGrid').addEventListener('click',e=>{ const c=e.target.closest('.proj'); if(c&&c.dataset.code) openTeam(c.dataset.code); });
-document.getElementById('tmxClose').addEventListener('click',()=>{ document.getElementById('teamModal').style.display='none'; });
-document.getElementById('teamModal').addEventListener('click',e=>{ if(e.target.id==='teamModal') e.currentTarget.style.display='none'; });
+document.getElementById('projGrid').addEventListener('click',e=>{ const c=e.target.closest('.proj'); if(c&&c.dataset.code){ curTeam=c.dataset.code; rerender(); window.scrollTo(0,0); } });
+document.getElementById('teamBack').addEventListener('click',()=>{ curTeam=null; rerender(); window.scrollTo(0,0); });
 // Sắp xếp cột (click tiêu đề) cho các bảng
 ['#tblPage','#tblSale','#tblMeta','#teamStaffTbl'].forEach(makeSortable);
 renderTagMapUI();
