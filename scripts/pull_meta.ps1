@@ -108,5 +108,10 @@ foreach($mk in $allMkts){
   }
   $out.byMkt[$mk]=[ordered]@{ sp=$spOut; staffAds=$saOut }
 }
-[System.IO.File]::WriteAllText((Join-Path $PSScriptRoot '../public/meta.js'),"window.META_DATA = $($out | ConvertTo-Json -Depth 8);",(New-Object System.Text.UTF8Encoding $false))
-Write-Host ("`n✅ {0} thị trường / {1} mã SP / {2} NV(ads) [theo ngày] -> meta.js" -f $out.byMkt.Count,$totCodes,$totProj) -ForegroundColor Green
+# LÁ CHẮN throttle: pull khoẻ ~vài nghìn dòng-ngày. Nếu quá ít (bị Meta throttle) -> GIỮ meta.js cũ, KHÔNG ghi đè data thiếu.
+if($rows -lt 100){
+  Write-Host ("`n⚠️ Chỉ {0} dòng-ngày (nghi Meta throttle) -> GIỮ meta.js cũ, không ghi đè." -f $rows) -ForegroundColor Yellow
+} else {
+  [System.IO.File]::WriteAllText((Join-Path $PSScriptRoot '../public/meta.js'),"window.META_DATA = $($out | ConvertTo-Json -Depth 8);",(New-Object System.Text.UTF8Encoding $false))
+  Write-Host ("`n✅ {0} thị trường / {1} mã SP / {2} NV(ads) [theo ngày, {3} dòng] -> meta.js" -f $out.byMkt.Count,$totCodes,$totProj,$rows) -ForegroundColor Green
+}
