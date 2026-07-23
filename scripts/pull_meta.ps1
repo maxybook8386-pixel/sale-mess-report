@@ -34,9 +34,9 @@ foreach($acct in $accts){
   $guard=0
   while($url -and $guard -lt 120){
     $guard++; $r=$null
-    for($att=1;$att -le 4 -and -not $r;$att++){
-      try{ $r=Invoke-RestMethod $url -TimeoutSec 90 }
-      catch{ if($att -lt 4){ Start-Sleep -Seconds (2*$att) } }
+    for($att=1;$att -le 2 -and -not $r;$att++){   # FAIL NHANH khi throttle (tránh timeout cả job)
+      try{ $r=Invoke-RestMethod $url -TimeoutSec 45 }
+      catch{ if($att -lt 2){ Start-Sleep -Seconds 1 } }
     }
     if(-not $r){ break }
     foreach($row in $r.data){
