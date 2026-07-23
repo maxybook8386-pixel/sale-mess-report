@@ -27,7 +27,7 @@ function Get-Mkt([string]$name){
 $mkts=@{}   # mkt -> code -> @{name; days=@{date->@{mess;spend}}}
 $projs=@{}  # mkt -> sid -> @{name; days=@{date->@{spend;mess}}; camps=@{name->1}}
 
-$tr='{"since":"'+$since+'","until":"'+$until+'"}'
+$tr=[uri]::EscapeDataString('{"since":"'+$since+'","until":"'+$until+'"}')   # PHẢI url-encode JSON trong URL
 $rows=0
 foreach($acct in $accts){
   $url="https://graph.facebook.com/$GV/act_$acct/insights?level=campaign&fields=campaign_name,spend,actions&time_range=$tr&time_increment=1&limit=500&access_token=$TOKEN"
