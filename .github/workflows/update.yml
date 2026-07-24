@@ -32,9 +32,7 @@ jobs:
         run: |
           ./scripts/refresh.ps1
           ./scripts/pull_tags.ps1
-          # Meta kéo THƯA hơn (chỉ ~mỗi giờ, khi phút < 20) để token Meta hồi, tránh throttle.
-          # Các run khác giữ nguyên meta.js đã tải về (không regenerate).
-          if((Get-Date).Minute -lt 20){ ./scripts/pull_meta.ps1 } else { Write-Host "Bo qua pull_meta lan nay (chi keo moi gio de token Meta hoi)" -ForegroundColor Yellow }
+          ./scripts/pull_meta.ps1
 
       - name: Deploy Cloudflare Pages
         env:
