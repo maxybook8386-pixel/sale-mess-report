@@ -70,7 +70,9 @@ foreach ($m in $markets) {
     $pgid  = if ($o.page -and $o.page.id) { "" + $o.page.id } elseif ($o.page_id) { "" + $o.page_id } else { '?' }
     $pname = if ($o.page -and $o.page.name) { $o.page.name } elseif ($o.account_name) { $o.account_name } else { '(Không rõ page)' }
     if (-not $pagesMeta.ContainsKey($pgid)) { $pagesMeta[$pgid] = $pname }
-    $rev = [double]$o.total_price / $m.div
+    # Doanh số = giá SAU GIẢM (tiền thật khách trả), KHÔNG dùng total_price (giá gốc trước giảm -> phồng số).
+    $rev = [double]$o.total_price_after_sub_discount / $m.div
+    if ($rev -le 0) { $rev = [double]$o.total_price / $m.div }
     if ($rev -le 0) { $rev = [double]$o.cod / $m.div }
     $sale = if ($o.marketer -and $o.marketer.name) { $o.marketer.name } else { '(Chưa gán MKT)' }
     $statusSeen[$sn] = $true
