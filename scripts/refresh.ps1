@@ -87,13 +87,13 @@ foreach ($m in $markets) {
       break
     }
     # NGÀY GỬI HÀNG (sd) = lần đổi trạng thái sang "Đã gửi hàng" (status code 2) trong status_history.
-    # Dùng cho TỈ LỆ HOÀN (lọc theo ngày gửi, giống Pancake "Cập nhật trạng thái: Đã gửi hàng").
+    # ⚠️ Pancake trả giờ UTC -> CỘNG 7 TIẾNG ra giờ VN trước khi lấy ngày (kẻo đơn 0h-7h sáng nhảy về hôm qua).
     $sd = $null
     foreach ($h in @($o.status_history)) {
-      if ([int]$h.status -eq 2) { try { $sd = ([datetime](("" + $h.updated_at) -split '\.')[0]).ToString('yyyy-MM-dd') } catch {}; break }
+      if ([int]$h.status -eq 2) { try { $sd = ([datetime](("" + $h.updated_at) -split '\.')[0]).AddHours(7).ToString('yyyy-MM-dd') } catch {}; break }
     }
     [void]$orders.Add([ordered]@{
-      d    = ([datetime]$o.inserted_at).ToString('yyyy-MM-dd')
+      d    = ([datetime]$o.inserted_at).AddHours(7).ToString('yyyy-MM-dd')   # UTC -> VN
       sd   = $sd
       pid  = $pgid
       st   = $sn
