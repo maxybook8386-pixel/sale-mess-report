@@ -27,6 +27,11 @@ $markets = @(
   @{ key='id'; name='Indo'; flag='🇮🇩'; currency='IDR'; symbol='Rp'; shop='1021279389'; apikey=$env:POS_APIKEY_ID; rate=1.6; div=1; pages=@{ '1133350909867210'='Komobook - Rumah Ilmu Anak' } }
 )
 
+# Page bị LOẠI khỏi báo cáo (không tính đơn lẫn KH tương tác). Thêm page ID vào đây khi cần ẩn.
+$excludePages = @(
+  '1095715376969242'   # Changgo Book - เลี้ยงลูกเชิงบวก ไม่ต้องตี (sếp yêu cầu ẩn 4/9/2026)
+)
+
 # status_name (Pancake) -> nhãn tiếng Việt
 $statusVi = @{
   'submitted'='Đã duyệt'; 'shipped'='Đã gửi hàng'; 'delivered'='Đã giao thành công';
@@ -68,6 +73,7 @@ foreach ($m in $markets) {
     if (("" + $o.order_sources_name) -ne 'Facebook') { continue }
     $sn = ("" + $o.status_name).ToLower()
     $pgid  = if ($o.page -and $o.page.id) { "" + $o.page.id } elseif ($o.page_id) { "" + $o.page_id } else { '?' }
+    if ($excludePages -contains $pgid) { continue }   # loại page bị ẩn khỏi báo cáo
     $pname = if ($o.page -and $o.page.name) { $o.page.name } elseif ($o.account_name) { $o.account_name } else { '(Không rõ page)' }
     if (-not $pagesMeta.ContainsKey($pgid)) { $pagesMeta[$pgid] = $pname }
     # Doanh số = giá SAU GIẢM (tiền thật khách trả), KHÔNG dùng total_price (giá gốc trước giảm -> phồng số).
@@ -166,6 +172,7 @@ if (Test-Path $oldPath) {
       foreach ($x in @($mk.interactions)) { [void]$merged.Add($x) }
       $kept = 0
       foreach ($x in @($oldMk.interactions)) {
+        if ($excludePages -contains ("" + $x.pid)) { continue }   # bỏ tương tác cũ của page bị ẩn
         $k = "$($x.pid)|$($x.d)"
         if (-not $seen.ContainsKey($k) -and ("" + $x.d) -lt $minNew) {
           [void]$merged.Add([ordered]@{ d = ("" + $x.d); pid = ("" + $x.pid); n = [int]$x.n }); $kept++
